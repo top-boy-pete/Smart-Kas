@@ -6,6 +6,7 @@ import {
   ShoppingBasket, Star, Store, Sun, Wallet, Wheat, X,
 } from "lucide-react";
 import { categories, demoOrder, formatNaira, readStored, starterInventory, starterProducts } from "./data.js";
+import AdminView from "./AdminView.jsx";
 import { demoMode, loadAccountProfile, supabase, supabaseConfigured } from "./lib/supabase.js";
 
 const paymentMethods = [
@@ -71,9 +72,9 @@ function Header({ search, setSearch, cartCount, walletBalance, onWallet, onCart,
   );
 }
 
-function LandingPage({ onRegister, onLogin }) {
+function LandingPage({ onRegister, onLogin, onAdmin }) {
   return <main className="landing-page" id="top">
-    <header className="landing-header"><Brand /><nav aria-label="Main navigation"><button className="text-button" type="button" onClick={onLogin}>Login</button><button className="primary-button" type="button" onClick={onRegister}>Create account <ArrowRight size={15} /></button></nav></header>
+    <header className="landing-header"><Brand /><nav aria-label="Main navigation">{onAdmin && <button className="text-button" type="button" onClick={onAdmin}>Admin preview</button>}<button className="text-button" type="button" onClick={onLogin}>Login</button><button className="primary-button" type="button" onClick={onRegister}>Create account <ArrowRight size={15} /></button></nav></header>
     <section className="landing-hero"><div className="landing-hero-copy"><div className="hero-kicker"><BadgeCheck size={14} /> Masaka's trusted local market</div><h1>Good food, from your market to your door.</h1><p>Shop verified traders, get your goods checked at the local hub, and have your order delivered across Masaka.</p><div className="landing-actions"><button className="primary-button" type="button" onClick={onRegister}>Get started <ArrowRight size={15} /></button><button className="landing-secondary" type="button" onClick={onLogin}>I already have an account</button></div><div className="landing-location"><MapPin size={15} /> Masaka, Nasarawa State</div></div></section>
     <section className="landing-benefits" aria-label="Kasua marketplace benefits"><div><ShieldCheck size={19} /><span><strong>Checked at the hub</strong><small>Quality checks before dispatch</small></span></div><div><Store size={19} /><span><strong>Local traders</strong><small>Buy directly from Masaka stalls</small></span></div><div><Bike size={19} /><span><strong>Market to your door</strong><small>Order delivery in one place</small></span></div></section>
   </main>;
@@ -546,7 +547,8 @@ export default function App() {
   if (!account) {
     if (entryPage === "register") return <RegisterPage onRegister={registerAccount} onLogin={() => setEntryPage("login")} onHome={() => setEntryPage("landing")} demoMode={demoMode} />;
     if (entryPage === "login") return <LoginPage onLogin={loginAccount} onRegister={() => setEntryPage("register")} onHome={() => setEntryPage("landing")} demoMode={demoMode} />;
-    return <LandingPage onRegister={() => setEntryPage("register")} onLogin={() => setEntryPage("login")} />;
+    if (entryPage === "admin" && demoMode) return <AdminView onExit={() => setEntryPage("landing")} />;
+    return <LandingPage onRegister={() => setEntryPage("register")} onLogin={() => setEntryPage("login")} onAdmin={demoMode ? () => setEntryPage("admin") : undefined} />;
   }
   if (account.role === "merchant" && account.verificationStatus !== "verified") return <MerchantApplicationStatus account={account} onLogout={logout} />;
 
