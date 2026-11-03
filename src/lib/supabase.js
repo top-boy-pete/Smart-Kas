@@ -30,13 +30,14 @@ export async function loadAccountProfile(userId) {
 
   const { data: merchant, error: merchantError } = await supabase
     .from("merchant_profiles")
-    .select("store_name, market_name, stall_number, landmark, verification_status")
+    .select("store_name, market_name, stall_number, landmark, verification_status, review_feedback")
     .eq("user_id", profile.id)
     .maybeSingle();
   if (merchantError) throw merchantError;
   return {
     ...account,
     verificationStatus: merchant?.verification_status ?? "pending",
+    reviewFeedback: merchant?.review_feedback ?? "",
     application: merchant ? {
       stall: merchant.store_name,
       market: merchant.market_name,

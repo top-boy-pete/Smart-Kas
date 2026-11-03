@@ -1,10 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck,
-  Bell, Boxes, ChartNoAxesCombined, Check, ChevronRight, CircleDollarSign,
-  ClipboardList, FileWarning, LayoutDashboard, MapPin, MessageSquareWarning,
-  PackageCheck, Search, ShieldAlert, ShieldCheck, Store, Truck, Users, X,
+  Bell, Boxes, ChartNoAxesCombined, Check, CheckSquare, ChevronRight, CircleDollarSign,
+  ClipboardCheck, ClipboardList, Clock3, FileWarning, LayoutDashboard, MapPin,
+  MessageSquareWarning, PackageCheck, Search, ShieldAlert, ShieldCheck, Store,
+  Truck, Users, X,
 } from "lucide-react";
+import {
+  loadAuditEvents, loadComplaints, loadFinancialApprovals, loadMerchantApplications,
+  reviewFinancialApproval, reviewMerchantApplication, setMerchantReviewCheck,
+  submitFinancialApproval, updateComplaint,
+} from "./lib/admin.js";
 
 const navItems = [
   { name: "Overview", icon: LayoutDashboard },
@@ -60,6 +66,30 @@ const products = [
   { id: "OF-7182", product: "Palm oil · 1 litre", merchant: "Musa's Provisions", issue: "Listing information incomplete", status: "Needs changes" },
 ];
 
+const sectionRoles = {
+  "Merchant review": ["merchant_reviewer"],
+  Complaints: ["support_agent"],
+  "Finance & risk": ["finance_reviewer", "finance_approver"],
+  "Reports & audit": ["audit_viewer"],
+};
+
+const reviewCheckDetails = {
+  identity: ["Identity and business ownership reviewed", "Review the applicant's identity and ownership evidence."],
+  market: ["Market and stall details confirmed", "Confirm the market association and stall number."],
+  location: ["Physical stall and location verified", "Confirm the stall location and handoff point."],
+  policy: ["Merchant policies accepted", "Confirm pricing, product, and fulfillment policy acceptance."],
+};
+
+function displayDate(value) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function formatStatus(value) {
+  const label = value.replaceAll("_", " ");
+  return label[0].toUpperCase() + label.slice(1);
+}
+
 function StatusTag({ children, tone = "neutral" }) {
   return <span className={`admin-status ${tone}`}>{children}</span>;
 }
@@ -80,12 +110,20 @@ function SearchField({ value, onChange, placeholder }) {
   return <label className="admin-search"><Search size={15} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} aria-label={placeholder} /></label>;
 }
 
-function Overview({ setSection }) {
+function Overview({ setSection, merchantTotal, pendingMerchantTotal, isDemo, complaintTotal, canViewAudit }) {
+  if (!isDemo) return <>
+    <SectionHeading eyebrow="Staff operations" title="Operations overview" detail="Live workload totals are scoped to your assigned staff permissions." action={canViewAudit && <button className="admin-quiet-button" type="button" onClick={() => setSection("Reports & audit")}><Activity size={15} /> View audit</button>} />
+    <div className="admin-metrics">
+      {merchantTotal !== null && <Metric label="Merchant applications" value={merchantTotal} change={`${pendingMerchantTotal} awaiting review`} icon={Store} tone="orange" />}
+      {complaintTotal !== null && <Metric label="Complaint cases" value={complaintTotal} change={`${complaintTotal} in your support queue`} icon={MessageSquareWarning} tone="blue" />}
+    </div>
+    <p className="admin-hint"><ShieldCheck size={15} /> Staff queue data is loaded from Supabase using your assigned role. Actions are recorded in the audit trail.</p>
+  </>;
   return <>
     <SectionHeading eyebrow="Market operations · Masaka" title="Operations overview" detail="A single view of marketplace activity, hub exceptions, and customer issues." action={<button className="admin-quiet-button" type="button" onClick={() => setSection("Reports & audit")}><Activity size={15} /> View reports</button>} />
     <div className="admin-metrics">
       <Metric label="Consumers" value="1,284" change="+36 this month" icon={Users} />
-      <Metric label="Merchants" value="186" change="12 awaiting review" icon={Store} tone="orange" />
+      <Metric label="Merchants" value={merchantTotal} change={`${pendingMerchantTotal} awaiting review`} icon={Store} tone="orange" />
       <Metric label="Open orders" value="47" change="7 need attention" icon={ClipboardList} tone="blue" />
       <Metric label="Hub exceptions" value="6" change="2 past target" icon={Boxes} tone="red" />
     </div>
@@ -98,9 +136,9 @@ function Overview({ setSection }) {
   </>;
 }
 
-function AccountsView({ search, setSearch }) {
+function AccountsView({ search, setSearch, accountRecords }) {
   const [type, setType] = useState("All accounts");
-  const visibleAccounts = useMemo(() => accounts.filter(account => (type === "All accounts" || account.role === type) && `${account.id} ${account.name} ${account.email} ${account.area}`.toLowerCase().includes(search.toLowerCase())), [type, search]);
+  const visibleAccounts = useMemo(() => accountRecords.filter(account => (type === "All accounts" || account.role === type) && `${account.id} ${account.name} ${account.email} ${account.area}`.toLowerCase().includes(search.toLowerCase())), [type, search, accountRecords]);
   return <>
     <SectionHeading eyebrow="People and access" title="Accounts" detail="Consumer and merchant records. Sensitive customer details are masked in this preview." />
     <div className="admin-toolbar"><div className="admin-tabs">{["All accounts", "Consumer", "Merchant"].map(option => <button key={option} className={type === option ? "active" : ""} type="button" onClick={() => setType(option)}>{option}</button>)}</div><SearchField value={search} onChange={setSearch} placeholder="Search by ID, name, or area" /></div>
@@ -108,12 +146,17 @@ function AccountsView({ search, setSearch }) {
   </>;
 }
 
-function MerchantReviewView() {
+function MerchantReviewView({ applications, onSelect, selectedApplication, onCheck, onApprove, onRequestChanges, onClose, isDemo, actionBusy }) {
+  const [decisionReason, setDecisionReason] = useState("");
+  const pendingCount = applications.filter(application => ["Pending review", "Needs changes"].includes(application.status)).length;
+  const checksComplete = selectedApplication?.checks.every(check => check.complete) ?? false;
+  const canRequestChanges = decisionReason.trim().length >= 3;
   return <>
     <SectionHeading eyebrow="Trust operations" title="Merchant review" detail="Review identity, business, stall, and location checks before granting selling access." />
-    <div className="admin-review-summary"><div><BadgeCheck size={17} /><span><strong>12</strong> applications pending</span></div><div><Clock3 size={17} /><span><strong>2.4 days</strong> median review time</span></div><div><ShieldCheck size={17} /><span><strong>3</strong> appeals due today</span></div></div>
-    <section className="admin-section admin-full-section"><Table columns={["Applicant", "Market / stall", "Submitted", "Checks", "Status", "Action"]} rows={accounts.filter(account => account.status === "Pending review").map(account => ({ id: account.id, cells: [<strong>{account.name}</strong>, account.area, "Today · 10:24", "Identity · Stall · Location", <StatusTag tone="warning">Pending review</StatusTag>, <button className="admin-row-button" type="button" disabled title="Review workflow is not connected">Review</button>] }))} emptyMessage="No merchant applications are waiting." /></section>
-    <p className="admin-hint"><ShieldAlert size={15} /> Approval, rejection, and document access must be enforced by audited server-side staff permissions.</p>
+    <div className="admin-review-summary"><div><BadgeCheck size={17} /><span><strong>{pendingCount}</strong> applications awaiting review</span></div>{isDemo && <><div><Clock3 size={17} /><span><strong>2.4 days</strong> median review time</span></div><div><ShieldCheck size={17} /><span><strong>3</strong> appeals due today</span></div></>}</div>
+    <section className="admin-section admin-full-section"><Table columns={["Applicant", "Market / stall", "Submitted", "Checks", "Status", "Action"]} rows={applications.map(application => ({ id: application.id, cells: [<strong>{application.name}</strong>, application.area, application.submitted, `${application.checks.filter(check => check.complete).length}/${application.checks.length} checks complete`, <StatusTag tone={application.status === "Verified" ? "green" : application.status === "Rejected" ? "red" : "warning"}>{application.status}</StatusTag>, ["Pending review", "Needs changes"].includes(application.status) ? <button className="admin-row-button" type="button" onClick={() => { setDecisionReason(""); onSelect(application.id); }}>Review</button> : <span className="admin-reviewed-mark"><Check size={13} /> Reviewed</span>] }))} emptyMessage="No merchant applications are waiting." /></section>
+    {selectedApplication && <section className="admin-section admin-review-workbench"><div className="admin-section-title"><div><span className="admin-eyebrow">{isDemo ? "Sample application" : "Application"} · {selectedApplication.id}</span><h2>{selectedApplication.name}</h2><span className="admin-subtext">{selectedApplication.area} · submitted {selectedApplication.submitted}</span></div><button className="admin-icon-action light" type="button" aria-label="Close review" onClick={onClose}><X size={16} /></button></div><p>{selectedApplication.landmark}</p><div className="admin-review-checks">{selectedApplication.checks.map(check => <label className="admin-review-check" key={check.id}><input type="checkbox" checked={check.complete} disabled={actionBusy} onChange={event => onCheck(selectedApplication.id, check.id, event.target.checked, check.notes || "")} /><span><strong>{check.label}</strong><small>{check.notes || check.detail}</small></span><CheckSquare size={16} /></label>)}</div><label className="admin-workflow-field"><span>Decision reason or evidence note</span><textarea value={decisionReason} onChange={event => setDecisionReason(event.target.value)} maxLength={2000} placeholder="Record the evidence checked, or explain what the applicant must change." /></label><div className="admin-review-footer"><span>{checksComplete ? "All review checks are complete." : "Complete all checks before approving this application."}</span><div><button className="admin-secondary-action" type="button" disabled={actionBusy || !canRequestChanges} onClick={() => onRequestChanges(selectedApplication.id, decisionReason)}>{actionBusy ? "Saving..." : "Request changes"}</button><button className="admin-approve-action" type="button" disabled={actionBusy || !checksComplete} onClick={() => onApprove(selectedApplication.id, decisionReason)}><Check size={14} /> {actionBusy ? "Saving..." : "Approve merchant"}</button></div></div>{isDemo && <p className="admin-preview-footnote">Preview only. This does not change Supabase data or grant seller access.</p>}</section>}
+    <p className="admin-hint"><ShieldAlert size={15} /> Approval requires all four checks; decisions and evidence notes are written atomically to the audit trail.</p>
   </>;
 }
 
@@ -139,14 +182,33 @@ function LogisticsView() {
   </>;
 }
 
-function ComplaintsView() {
+function ComplaintsView({ complaintCases, onUpdate, isDemo, actionBusy }) {
   const [priority, setPriority] = useState("All complaints");
-  const rows = complaints.filter(item => priority === "All complaints" || item.priority === priority);
+  const [selectedId, setSelectedId] = useState(null);
+  const [status, setStatus] = useState("investigating");
+  const [selectedPriority, setSelectedPriority] = useState("normal");
+  const [staffNote, setStaffNote] = useState("");
+  const [claimForSelf, setClaimForSelf] = useState(false);
+  const rows = complaintCases.filter(item => priority === "All complaints" || item.priority === priority);
+  const selectedCase = complaintCases.find(item => item.id === selectedId);
+  function selectCase(item) {
+    setSelectedId(item.id);
+    setStatus(item.rawStatus || "investigating");
+    setSelectedPriority((item.rawPriority || "normal"));
+    setStaffNote("");
+    setClaimForSelf(false);
+  }
+  function saveCase(event) {
+    event.preventDefault();
+    if (!selectedCase || staffNote.trim().length < 3) return;
+    onUpdate(selectedCase.id, status, selectedPriority, claimForSelf, staffNote.trim());
+  }
   return <>
-    <SectionHeading eyebrow="Customer care" title="Complaints & disputes" detail="Order-linked cases, response deadlines, evidence, escalation, and customer updates." />
-    <div className="admin-toolbar"><div className="admin-tabs">{["All complaints", "High", "Normal", "Review"].map(option => <button key={option} className={priority === option ? "active" : ""} type="button" onClick={() => setPriority(option)}>{option}</button>)}</div><button className="admin-quiet-button" type="button" disabled title="Support ticket workflow is not connected"><MessageSquareWarning size={15} /> New ticket</button></div>
-    <section className="admin-section admin-full-section"><Table columns={["Case", "Issue", "Order", "Customer", "Priority", "Age", "Action"]} rows={rows.map(item => ({ id: item.id, cells: [<strong>{item.id}</strong>, item.topic, item.order, item.customer, <StatusTag tone={item.priority === "High" ? "red" : item.priority === "Normal" ? "blue" : "warning"}>{item.priority}</StatusTag>, item.age, <button className="admin-row-button" type="button" disabled title="Case assignment is not connected">Assign</button>] }))} emptyMessage="No complaints in this view." /></section>
-    <p className="admin-hint"><ShieldAlert size={15} /> Complaint decisions need evidence, recorded reasons, response deadlines, and an appeal path.</p>
+    <SectionHeading eyebrow="Customer care" title="Complaints & disputes" detail="Review order-linked cases, assign ownership, record internal notes, and move cases through resolution." />
+    <div className="admin-toolbar"><div className="admin-tabs">{["All complaints", "High", "Normal", "Low"].map(option => <button key={option} className={priority === option ? "active" : ""} type="button" onClick={() => setPriority(option)}>{option}</button>)}</div></div>
+    <section className="admin-section admin-full-section"><Table columns={["Case", "Issue", "Order", "Customer", "Priority", "Status", "Action"]} rows={rows.map(item => ({ id: item.id, cells: [<strong>{item.id.slice(0, 8)}</strong>, item.topic, item.order, item.customer, <StatusTag tone={item.priority === "High" ? "red" : item.priority === "Normal" ? "blue" : "neutral"}>{item.priority}</StatusTag>, <StatusTag tone={item.status === "Resolved" || item.status === "Closed" ? "green" : "warning"}>{item.status}</StatusTag>, <button className="admin-row-button" type="button" onClick={() => selectCase(item)}>Open</button>] }))} emptyMessage="No complaints in this view." /></section>
+    {selectedCase && <section className="admin-section admin-review-workbench"><div className="admin-section-title"><div><span className="admin-eyebrow">Case · {selectedCase.id}</span><h2>{selectedCase.topic}</h2><span className="admin-subtext">{selectedCase.customer} · {selectedCase.order} · {selectedCase.age}</span></div><button className="admin-icon-action light" type="button" aria-label="Close case" onClick={() => setSelectedId(null)}><X size={16} /></button></div><p>{selectedCase.description}</p><div className="admin-case-timeline">{selectedCase.events.map(event => <div key={event.id}><strong>{formatStatus(event.event_type)}</strong><span>{event.event_note}</span><small>{displayDate(event.created_at)}</small></div>)}</div><form className="admin-workflow-form" onSubmit={saveCase}><label className="admin-workflow-field"><span>Status</span><select value={status} onChange={event => setStatus(event.target.value)}><option value="open">Open</option><option value="investigating">Investigating</option><option value="waiting_on_customer">Waiting on customer</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></label><label className="admin-workflow-field"><span>Priority</span><select value={selectedPriority} onChange={event => setSelectedPriority(event.target.value)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option></select></label><label className="admin-review-check"><input type="checkbox" checked={claimForSelf} onChange={event => setClaimForSelf(event.target.checked)} /><span><strong>Assign this case to me</strong><small>Owner assignment is recorded in the update.</small></span></label><label className="admin-workflow-field"><span>Internal note / resolution reason</span><textarea value={staffNote} onChange={event => setStaffNote(event.target.value)} minLength={3} maxLength={2000} required placeholder="Record evidence reviewed, customer follow-up, or resolution." /></label><button className="admin-approve-action" type="submit" disabled={isDemo || actionBusy || staffNote.trim().length < 3}>{actionBusy ? "Saving..." : "Save case update"}</button></form>{isDemo && <p className="admin-preview-footnote">Preview only. Complaint actions are not connected in demo mode.</p>}</section>}
+    <p className="admin-hint"><ShieldAlert size={15} /> Case updates require an internal reason. Customer events and staff-only notes are separately scoped.</p>
   </>;
 }
 
@@ -158,43 +220,229 @@ function CatalogView() {
   </>;
 }
 
-function FinanceRiskView() {
+function FinanceRiskView({ approvals, staffRoles, currentUserId, onSubmit, onReview, actionBusy, isDemo }) {
+  const [actionType, setActionType] = useState("refund");
+  const [reference, setReference] = useState("");
+  const [amount, setAmount] = useState("");
+  const [requestReason, setRequestReason] = useState("");
+  const [selectedId, setSelectedId] = useState(null);
+  const [decisionReason, setDecisionReason] = useState("");
+  const selectedApproval = approvals.find(item => item.id === selectedId);
+  const canRequest = staffRoles.includes("finance_reviewer");
+  const canApprove = staffRoles.includes("finance_approver");
+  function submitRequest(event) {
+    event.preventDefault();
+    const naira = Number(amount);
+    const minorUnits = Math.round(naira * 100);
+    if (!Number.isFinite(naira) || naira <= 0 || minorUnits <= 0 || !Number.isSafeInteger(minorUnits)) return;
+    onSubmit(actionType, reference.trim(), minorUnits, requestReason.trim(), () => {
+      setReference("");
+      setAmount("");
+      setRequestReason("");
+    });
+  }
+  function submitDecision(decision) {
+    if (!selectedApproval || decisionReason.trim().length < 3) return;
+    Promise.resolve(onReview(selectedApproval.id, decision, decisionReason.trim())).then(saved => {
+      if (saved) {
+        setSelectedId(null);
+        setDecisionReason("");
+      }
+    });
+  }
+  const money = minorUnits => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(minorUnits / 100);
   return <>
-    <SectionHeading eyebrow="Restricted operations" title="Finance & risk" detail="Read-only controls for payment reconciliation, refund queues, payout oversight, and risk investigations." />
-    <div className="admin-metrics compact"><Metric label="Payment reconciliation" value="3" change="Unmatched references" icon={CircleDollarSign} tone="orange" /><Metric label="Refund requests" value="5" change="2 need review" icon={ArrowRight} tone="blue" /><Metric label="Payout holds" value="2" change="No release action enabled" icon={ShieldAlert} tone="red" /><Metric label="Risk alerts" value="4" change="Human review required" icon={AlertTriangle} /></div>
-    <p className="admin-hint"><ShieldCheck size={15} /> No payment, refund, payout, suspension, or fraud action can be triggered from this prototype.</p>
+    <SectionHeading eyebrow="Restricted operations" title="Finance & risk" detail="Financial requests require a separate approver. Approval records do not execute refunds, payouts, or payment changes." />
+    {isDemo ? <div className="admin-metrics compact"><Metric label="Payment reconciliation" value="3" change="Sample unmatched references" icon={CircleDollarSign} tone="orange" /><Metric label="Refund requests" value="5" change="Sample review queue" icon={ArrowRight} tone="blue" /><Metric label="Payout holds" value="2" change="No release action enabled" icon={ShieldAlert} tone="red" /><Metric label="Risk alerts" value="4" change="Human review required" icon={AlertTriangle} /></div> : <>
+      {canRequest && <form className="admin-section admin-workflow-form" onSubmit={submitRequest}><div className="admin-section-title"><div><span className="admin-eyebrow">Dual-control workflow</span><h2>Request a financial action</h2></div></div><div className="admin-workflow-grid"><label className="admin-workflow-field"><span>Action</span><select value={actionType} onChange={event => setActionType(event.target.value)}><option value="refund">Refund</option><option value="payout_release">Payout release</option><option value="payment_adjustment">Payment adjustment</option></select></label><label className="admin-workflow-field"><span>Payment / payout reference</span><input value={reference} onChange={event => setReference(event.target.value)} maxLength={200} required /></label><label className="admin-workflow-field"><span>Amount (NGN)</span><input type="number" min="0.01" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} required /></label><label className="admin-workflow-field wide"><span>Reason and evidence summary</span><textarea value={requestReason} onChange={event => setRequestReason(event.target.value)} minLength={3} maxLength={2000} required /></label></div><button className="admin-approve-action" type="submit" disabled={actionBusy}>{actionBusy ? "Submitting..." : "Submit for independent approval"}</button></form>}
+      <section className="admin-section admin-full-section"><div className="admin-section-title"><div><span className="admin-eyebrow">Approval queue</span><h2>Financial action requests</h2></div></div><Table columns={["Requested", "Action", "Reference", "Amount", "Requester", "Status", "Decision"]} rows={approvals.map(item => ({ id: item.id, cells: [displayDate(item.created_at), formatStatus(item.action_type), item.target_reference, money(item.amount_minor_units), item.requester_name, <StatusTag tone={item.status === "approved" ? "green" : item.status === "rejected" ? "red" : "warning"}>{formatStatus(item.status)}</StatusTag>, item.status === "pending" && canApprove && item.requested_by !== currentUserId ? <button className="admin-row-button" type="button" onClick={() => { setSelectedId(item.id); setDecisionReason(""); }}>Review</button> : item.review_reason || "—"] }))} emptyMessage="No financial approval requests." /></section>
+      {selectedApproval && <section className="admin-section admin-review-workbench"><div className="admin-section-title"><div><span className="admin-eyebrow">Independent approval</span><h2>{formatStatus(selectedApproval.action_type)} · {money(selectedApproval.amount_minor_units)}</h2><span className="admin-subtext">{selectedApproval.target_reference} · requested by {selectedApproval.requester_name}</span></div><button className="admin-icon-action light" type="button" aria-label="Close approval" onClick={() => setSelectedId(null)}><X size={16} /></button></div><p>{selectedApproval.request_reason}</p><label className="admin-workflow-field"><span>Approval / rejection reason</span><textarea value={decisionReason} onChange={event => setDecisionReason(event.target.value)} minLength={3} maxLength={2000} required /></label><div className="admin-review-footer"><span>Requesters cannot approve their own actions.</span><div><button className="admin-secondary-action" type="button" disabled={actionBusy || decisionReason.trim().length < 3} onClick={() => submitDecision("rejected")}>Reject</button><button className="admin-approve-action" type="button" disabled={actionBusy || decisionReason.trim().length < 3} onClick={() => submitDecision("approved")}>Approve request</button></div></div><p className="admin-preview-footnote">Approval is a recorded control only. No payment or payout is executed here.</p></section>}
+    </>}
+    <p className="admin-hint"><ShieldCheck size={15} /> Finance reviewers can request actions; a different finance approver must record a reason. No direct financial execution is exposed.</p>
   </>;
 }
 
-function ReportsView() {
+function ReportsView({ auditEvents, isDemo }) {
   return <>
     <SectionHeading eyebrow="Performance & accountability" title="Reports & audit" detail="Marketplace health, merchant visibility, concentration, operational metrics, and consequential-action history." />
-    <div className="admin-overview-grid"><section className="admin-section"><div className="admin-section-title"><div><span className="admin-eyebrow">Fairness monitor</span><h2>Merchant visibility</h2></div><span className="admin-period">Sample</span></div><div className="admin-market-pulse"><div className="pulse-line"><span>Top 10% merchant impression share</span><strong>41%</strong></div><div className="pulse-line"><span>New merchant discovery rate</span><strong>18%</strong></div><div className="pulse-line"><span>Eligible small-merchant exposure</span><strong>26%</strong></div><p>These are illustrative values only. Exposure is not a promise of equal sales.</p></div></section><section className="admin-section"><div className="admin-section-title"><div><span className="admin-eyebrow">AI oversight</span><h2>Model/service health</h2></div><span className="admin-period">Not connected</span></div><div className="admin-market-pulse"><div className="pulse-line"><span>Active services</span><strong>0</strong></div><div className="pulse-line"><span>Human overrides</span><strong>—</strong></div><div className="pulse-line"><span>Fallback events</span><strong>—</strong></div><p>No AI service is connected to production data.</p></div></section></div>
-    <section className="admin-section admin-full-section"><div className="admin-section-title"><div><span className="admin-eyebrow">Security trail</span><h2>Recent audit events</h2></div><StatusTag tone="warning">Sample events</StatusTag></div><Table columns={["Time", "Staff role", "Action", "Target", "Approval"]} rows={[{ id: "AU-201", cells: ["12:42", "Hub operator", "Recorded quantity mismatch", "SH-0831", "Not required"] }, { id: "AU-198", cells: ["12:31", "Merchant reviewer", "Requested additional documents", "ME-0218", "Logged"] }, { id: "AU-194", cells: ["11:58", "Dispatch coordinator", "Assigned route", "RT-NORTH-04", "Logged"] }]} /></section>
+    {isDemo && <div className="admin-overview-grid"><section className="admin-section"><div className="admin-section-title"><div><span className="admin-eyebrow">Fairness monitor</span><h2>Merchant visibility</h2></div><span className="admin-period">Sample</span></div><div className="admin-market-pulse"><div className="pulse-line"><span>Top 10% merchant impression share</span><strong>41%</strong></div><div className="pulse-line"><span>New merchant discovery rate</span><strong>18%</strong></div><div className="pulse-line"><span>Eligible small-merchant exposure</span><strong>26%</strong></div><p>These are illustrative values only. Exposure is not a promise of equal sales.</p></div></section><section className="admin-section"><div className="admin-section-title"><div><span className="admin-eyebrow">AI oversight</span><h2>Model/service health</h2></div><span className="admin-period">Not connected</span></div><div className="admin-market-pulse"><div className="pulse-line"><span>Active services</span><strong>0</strong></div><div className="pulse-line"><span>Human overrides</span><strong>—</strong></div><div className="pulse-line"><span>Fallback events</span><strong>—</strong></div><p>No AI service is connected to production data.</p></div></section></div>}
+    <section className="admin-section admin-full-section"><div className="admin-section-title"><div><span className="admin-eyebrow">Security trail</span><h2>Recent audit events</h2></div><StatusTag tone={auditEvents.some(event => event.sample) ? "warning" : "green"}>{auditEvents.some(event => event.sample) ? "Sample events" : "Live events"}</StatusTag></div><Table columns={["Time", "Staff role", "Action", "Target", "Details"]} rows={auditEvents.map(event => ({ id: event.id, cells: [event.time || displayDate(event.created_at), event.role || event.actor_role, event.action, event.target || `${event.entity_type} · ${event.entity_id}`, event.approval || JSON.stringify(event.details)] }))} emptyMessage="No audit events are visible to your account." /></section>
   </>;
 }
 
-export default function AdminView({ onExit }) {
+export default function AdminView({ onExit, account, isDemo = false }) {
   const [section, setSection] = useState("Overview");
   const [globalSearch, setGlobalSearch] = useState("");
+  const [merchantApplications, setMerchantApplications] = useState(() => isDemo ? accounts.filter(account => account.role === "Merchant").map(account => ({
+    id: account.id,
+    name: account.name,
+    area: account.area,
+    submitted: account.status === "Pending review" ? "Today · 10:24" : "Yesterday · 15:08",
+    status: account.status,
+    landmark: "",
+    checks: Object.entries(reviewCheckDetails).map(([id, [label, detail]]) => ({ id, label, detail, complete: false })),
+  })) : []);
+  const [complaintCases, setComplaintCases] = useState(() => isDemo ? complaints.map(item => ({
+    id: item.id,
+    topic: item.topic,
+    order: item.order,
+    customer: item.customer,
+    priority: item.priority,
+    rawPriority: item.priority.toLowerCase(),
+    rawStatus: "open",
+    status: "Open",
+    age: item.age,
+    description: item.topic,
+    events: [],
+  })) : []);
+  const [financialApprovals, setFinancialApprovals] = useState([]);
+  const [selectedMerchantId, setSelectedMerchantId] = useState(null);
+  const [auditEvents, setAuditEvents] = useState(() => isDemo ? [
+    { id: "AU-201", time: "12:42", role: "Hub operator", action: "Recorded quantity mismatch", target: "SH-0831", approval: "Not required", sample: true },
+    { id: "AU-198", time: "12:31", role: "Merchant reviewer", action: "Requested additional documents", target: "ME-0218", approval: "Logged", sample: true },
+    { id: "AU-194", time: "11:58", role: "Dispatch coordinator", action: "Assigned route", target: "RT-NORTH-04", approval: "Logged", sample: true },
+  ] : []);
+  const [accountNotice, setAccountNotice] = useState("");
+  const [toast, setToast] = useState("");
+  const [dataError, setDataError] = useState("");
+  const [isLoading, setIsLoading] = useState(!isDemo);
+  const [actionBusy, setActionBusy] = useState(false);
+  const staffRoles = account?.staffRoles || [];
+  const roleKey = staffRoles.slice().sort().join(",");
+  const selectedApplication = merchantApplications.find(application => application.id === selectedMerchantId);
+  const accountRecords = accounts.map(account => {
+    const application = merchantApplications.find(item => item.id === account.id);
+    return application ? { ...account, status: application.status } : account;
+  });
+
+  async function refreshData() {
+    const [merchantRows, complaintRows, approvalRows, auditRows] = await Promise.all([
+      staffRoles.includes("merchant_reviewer") ? loadMerchantApplications() : Promise.resolve(null),
+      staffRoles.includes("support_agent") ? loadComplaints() : Promise.resolve(null),
+      staffRoles.some(role => ["finance_reviewer", "finance_approver"].includes(role)) ? loadFinancialApprovals() : Promise.resolve(null),
+      staffRoles.includes("audit_viewer") ? loadAuditEvents() : Promise.resolve(null),
+    ]);
+    if (merchantRows) setMerchantApplications(merchantRows.map(row => ({
+      id: row.user_id,
+      name: row.full_name,
+      area: `${row.market_name} · Stall ${row.stall_number}`,
+      submitted: displayDate(row.submitted_at),
+      status: row.verification_status === "pending" ? "Pending review" : formatStatus(row.verification_status),
+      landmark: row.landmark,
+      checks: row.checks.map(check => {
+        const [label, detail] = reviewCheckDetails[check.id];
+        return { id: check.id, label, detail, complete: check.complete, notes: check.notes };
+      }),
+    })));
+    if (complaintRows) setComplaintCases(complaintRows.map(row => ({
+      id: row.id,
+      topic: row.subject,
+      order: row.order_reference || "—",
+      customer: row.customer_name,
+      priority: formatStatus(row.priority),
+      rawPriority: row.priority,
+      rawStatus: row.status,
+      status: formatStatus(row.status),
+      age: displayDate(row.created_at),
+      description: row.description,
+      assignedTo: row.assigned_to,
+      events: row.events,
+    })));
+    if (approvalRows) setFinancialApprovals(approvalRows);
+    if (auditRows) setAuditEvents(auditRows);
+  }
+
+  useEffect(() => {
+    if (isDemo) return undefined;
+    let active = true;
+    setIsLoading(true);
+    setDataError("");
+    refreshData()
+      .catch(error => { if (active) setDataError(error.message || "Could not load staff data."); })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [isDemo, roleKey]);
+
+  async function runAction(action, successMessage) {
+    setActionBusy(true);
+    setDataError("");
+    setAccountNotice("");
+    try {
+      await action();
+      setToast(successMessage);
+    } catch (error) {
+      setDataError(error.message || "The action could not be completed.");
+      setActionBusy(false);
+      return false;
+    }
+    try {
+      await refreshData();
+    } catch (error) {
+      setDataError(`Action saved, but staff data could not be refreshed: ${error.message}`);
+    } finally {
+      setActionBusy(false);
+    }
+    return true;
+  }
+
+  function updateMerchantCheck(applicationId, checkId, complete, notes) {
+    if (isDemo) {
+      setMerchantApplications(current => current.map(application => application.id !== applicationId ? application : {
+        ...application,
+        checks: application.checks.map(check => check.id === checkId ? { ...check, complete } : check),
+      }));
+      return;
+    }
+    void runAction(() => setMerchantReviewCheck(applicationId, checkId, complete, notes), "Review evidence saved and audited.");
+  }
+
+  function recordMerchantDecision(applicationId, decision, reason) {
+    const application = merchantApplications.find(item => item.id === applicationId);
+    if (!application) return;
+    if (isDemo) {
+      const status = decision === "verified" ? "Verified" : "Needs changes";
+      setMerchantApplications(current => current.map(item => item.id === applicationId ? { ...item, status } : item));
+      setAuditEvents(current => [{ id: `AU-${Date.now()}`, time: "Just now", role: "Merchant reviewer", action: status === "Verified" ? "Approved merchant application" : "Requested merchant application changes", target: applicationId, approval: "Recorded in preview", sample: true }, ...current]);
+      setAccountNotice(`${application.name}: ${status.toLowerCase()} (preview only)`);
+      setSelectedMerchantId(null);
+      return;
+    }
+    void runAction(() => reviewMerchantApplication(applicationId, decision, reason), "Merchant decision saved and audited.");
+    setSelectedMerchantId(null);
+  }
+
+  function saveComplaint(id, status, priority, claimForSelf, note) {
+    void runAction(() => updateComplaint(id, status, priority, claimForSelf, note), "Complaint update saved and audited.");
+  }
+
+  function submitApproval(actionType, reference, amountMinorUnits, reason, clearForm) {
+    return runAction(() => submitFinancialApproval(actionType, reference, amountMinorUnits, reason), "Financial action submitted for independent approval.")
+      .then(saved => { if (saved) clearForm(); return saved; });
+  }
+
+  function decideApproval(id, decision, reason) {
+    return runAction(() => reviewFinancialApproval(id, decision, reason), `Financial request ${decision}. No funds were moved.`);
+  }
+
+  const allowedNavItems = isDemo ? navItems : navItems.filter(item => item.name === "Overview" || sectionRoles[item.name]?.some(role => staffRoles.includes(role)));
   const CurrentIcon = navItems.find(item => item.name === section)?.icon || LayoutDashboard;
   const sectionContent = {
-    Overview: <Overview setSection={setSection} />,
-    Accounts: <AccountsView search={globalSearch} setSearch={setGlobalSearch} />,
-    "Merchant review": <MerchantReviewView />,
+    Overview: <Overview setSection={setSection} merchantTotal={isDemo ? accountRecords.filter(account => account.role === "Merchant" && account.status === "Verified").length : staffRoles.includes("merchant_reviewer") ? merchantApplications.length : null} pendingMerchantTotal={merchantApplications.filter(application => ["Pending review", "Needs changes"].includes(application.status)).length} complaintTotal={staffRoles.includes("support_agent") ? complaintCases.length : isDemo ? complaints.length : null} canViewAudit={isDemo || staffRoles.includes("audit_viewer")} isDemo={isDemo} />,
+    Accounts: <AccountsView search={globalSearch} setSearch={setGlobalSearch} accountRecords={accountRecords} />,
+    "Merchant review": <MerchantReviewView applications={merchantApplications} onSelect={setSelectedMerchantId} selectedApplication={selectedApplication} onCheck={updateMerchantCheck} onApprove={(id, reason) => recordMerchantDecision(id, "verified", reason)} onRequestChanges={(id, reason) => recordMerchantDecision(id, "needs_changes", reason)} onClose={() => setSelectedMerchantId(null)} isDemo={isDemo} actionBusy={actionBusy} />,
     Orders: <OrdersView />,
     "Hub & logistics": <LogisticsView />,
-    Complaints: <ComplaintsView />,
+    Complaints: <ComplaintsView complaintCases={complaintCases} onUpdate={saveComplaint} isDemo={isDemo} actionBusy={actionBusy} />,
     "Catalog moderation": <CatalogView />,
-    "Finance & risk": <FinanceRiskView />,
-    "Reports & audit": <ReportsView />,
+    "Finance & risk": <FinanceRiskView approvals={financialApprovals} staffRoles={staffRoles} currentUserId={account?.id} onSubmit={submitApproval} onReview={decideApproval} actionBusy={actionBusy} isDemo={isDemo} />,
+    "Reports & audit": <ReportsView auditEvents={auditEvents} isDemo={isDemo} />,
   }[section];
 
   return <div className="admin-app">
-    <header className="admin-topbar"><div className="admin-brand"><img src="/smk.jpeg" alt="Smart Kasua" /><span>Control center</span></div><div className="admin-topbar-right"><span className="admin-live"><i /> Admin preview</span><button className="admin-icon-action" type="button" aria-label="Open logistics notifications" onClick={() => setSection("Hub & logistics")}><Bell size={17} /><b>4</b></button><button className="admin-exit" type="button" onClick={onExit}><X size={15} /> Exit preview</button></div></header>
+    <header className="admin-topbar"><div className="admin-brand"><img src="/smk.jpeg" alt="Smart Kasua" /><span>Control center</span></div><div className="admin-topbar-right"><span className="admin-live"><i /> {isDemo ? "Admin preview" : "Staff workspace"}</span>{isDemo && <button className="admin-icon-action" type="button" aria-label="Open logistics notifications" onClick={() => setSection("Hub & logistics")}><Bell size={17} /><b>4</b></button>}<button className="admin-exit" type="button" onClick={onExit}><X size={15} /> {isDemo ? "Exit preview" : "Sign out"}</button></div></header>
     <div className="admin-frame">
-      <aside className="admin-sidebar"><div className="admin-sidebar-heading">OPERATIONS</div><nav aria-label="Administration sections">{navItems.map(item => { const NavIcon = item.icon; return <button key={item.name} type="button" className={`admin-nav-item ${section === item.name ? "active" : ""}`} onClick={() => setSection(item.name)}><NavIcon size={16} /><span>{item.name}</span>{item.name === "Complaints" && <b>3</b>}</button>; })}</nav><div className="admin-staff-card"><div className="admin-staff-avatar">KS</div><div><strong>Kasua staff</strong><span>Read-only preview</span></div></div></aside>
-      <main className="admin-main"><div className="admin-main-top"><div className="admin-breadcrumb"><CurrentIcon size={15} /><span>Control center</span><ChevronRight size={13} /><strong>{section}</strong></div></div><div className="admin-demo-notice"><AlertTriangle size={15} /><span><strong>Prototype with sample data.</strong> No customer records, payments, notifications, or admin actions are connected. Actions requiring staff permissions are disabled.</span></div>{sectionContent}</main>
+      <aside className="admin-sidebar"><div className="admin-sidebar-heading">OPERATIONS</div><nav aria-label="Administration sections">{allowedNavItems.map(item => { const NavIcon = item.icon; return <button key={item.name} type="button" className={`admin-nav-item ${section === item.name ? "active" : ""}`} onClick={() => setSection(item.name)}><NavIcon size={16} /><span>{item.name}</span>{item.name === "Complaints" && <b>{complaintCases.length}</b>}</button>; })}</nav><div className="admin-staff-card"><div className="admin-staff-avatar">{(account?.name || "KS").slice(0, 1).toUpperCase()}</div><div><strong>{isDemo ? "Kasua staff" : account?.name}</strong><span>{isDemo ? "Read-only preview" : staffRoles.map(formatStatus).join(" · ")}</span></div></div></aside>
+      <main className="admin-main"><div className="admin-main-top"><div className="admin-breadcrumb"><CurrentIcon size={15} /><span>Control center</span><ChevronRight size={13} /><strong>{section}</strong></div></div>{isDemo ? <div className="admin-demo-notice"><AlertTriangle size={15} /><span><strong>Prototype with sample data.</strong> No live records are read or changed in preview mode.</span></div> : <div className="admin-demo-notice"><ShieldCheck size={15} /><span><strong>Role-scoped staff workspace.</strong> Database policies authorize every read and write; financial requests require a separate approver.</span></div>}{isLoading && <div className="admin-demo-notice" role="status">Loading authorized staff data...</div>}{dataError && <div className="admin-demo-notice" role="alert">{dataError}</div>}{accountNotice && <div className="admin-demo-notice success"><Check size={15} /><span>{accountNotice}</span></div>}{toast && <div className="admin-demo-notice" role="status">{toast}</div>}{sectionContent}</main>
     </div>
   </div>;
 }
