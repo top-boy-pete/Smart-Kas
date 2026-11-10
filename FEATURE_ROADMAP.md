@@ -1,6 +1,6 @@
 # Smart Kasua Feature Checklist
 
-Status key: checked items are present in the current browser demo; unchecked items remain to be built. A checked demo item is not a claim of production readiness.
+Status key: checked items are implemented in the app; some require backend migrations or production services to be deployed and configured. Unchecked items remain to be built. A checked demo item is not a claim of production readiness.
 
 ## Customer Marketplace
 
@@ -34,10 +34,9 @@ Status key: checked items are present in the current browser demo; unchecked ite
 - [x] Private identity/business document storage, reviewer evidence access, verification checks, resubmission, decisions, and audit history are implemented in Supabase migrations and the app; not active until deployed and configured.
 - [x] Versioned merchant policy acceptance is recorded with its timestamp; the current concise checklist is draft text and must be reviewed/finalized before public launch.
 - [x] Merchant onboarding dashboard shows review status, milestones, submitted evidence metadata, and reviewer feedback; demo mode warns and stores only dummy-file metadata.
-- [x] Product creation form with name, category, unit, price, and stock (local demo only).
-- [ ] Product editing, photo upload, and complete product specifications.
+- [x] Merchant product creation and editing with category, selling unit, price, stock, descriptions, structured specifications, and product photos.
 - [x] Category selection for a new product; no specialization requirement is enforced.
-- [ ] Server-backed pricing and stock management with reservation and out-of-stock handling.
+- [ ] Merchant-owned server-backed pricing and stock updates require applying the product migration; zero-stock listings will be hidden from the public catalog. Inventory reservation remains unimplemented.
 - [ ] Order notifications, acceptance/decline, and fulfillment status updates.
 - [ ] Collection, hub handoff, rider assignment, and delivery coordination.
 - [ ] Three-tier merchant ranking with published eligibility rules.

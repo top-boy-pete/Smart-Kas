@@ -12,6 +12,9 @@ import { loadCustomerCart, mergeGuestCart, saveCustomerCart } from "./lib/cart.j
 import { loadPublicProducts } from "./lib/catalog.js";
 import { createComplaint, loadCustomerComplaints } from "./lib/complaints.js";
 import {
+  loadMerchantProducts, saveMerchantProduct, validateMerchantProductPhoto,
+} from "./lib/merchant-products.js";
+import {
   MERCHANT_DOCUMENT_MAX_BYTES, MERCHANT_POLICY_VERSION,
   removeMerchantDocuments, uploadMerchantDocuments, validateMerchantDocuments,
 } from "./lib/merchant-onboarding.js";
@@ -440,12 +443,12 @@ function MerchantPolicyAcceptance({ checked, onChange, disabled = false }) {
 }
 
 function ProductCard({ product, onAdd, disabled = false }) {
-  const image = `https://images.unsplash.com/${product.image}?auto=format&fit=crop&w=600&q=80`;
+  const image = product.imageUrl || `https://images.unsplash.com/${product.image}?auto=format&fit=crop&w=600&q=80`;
   return (
     <article className="product-card">
       <div className="product-image"><img src={image} alt={product.name} loading="lazy" /><span className="price-note"><BadgeCheck size={11} />{product.note}</span></div>
-      <div className="product-info"><h3>{product.name}</h3><div className="seller-line"><BadgeCheck size={12} />{product.seller}{product.rating && <span>· ★ {product.rating}</span>}</div>
-        <div className="product-bottom"><div className="product-price">{formatNaira(product.price)}<span className="product-unit">{product.unit}</span></div><button className="icon-button add-button" type="button" aria-label={`Add ${product.name} to basket`} disabled={disabled} onClick={() => onAdd(product)}><Plus size={17} /></button></div>
+      <div className="product-info"><h3>{product.name}</h3><div className="seller-line"><BadgeCheck size={12} />{product.seller}{product.rating && <span>· ★ {product.rating}</span>}</div>{(product.description || product.brand || product.size || product.origin || product.specifications) && <details className="market-product-details"><summary>Product details</summary>{product.description && <span>{product.description}</span>}{product.brand && <span>Brand: {product.brand}</span>}{product.size && <span>Size: {product.size}</span>}{product.origin && <span>Origin: {product.origin}</span>}{product.specifications && <span>{product.specifications}</span>}</details>}
+        <div className="product-bottom"><div className="product-price">{formatNaira(product.price)}<span className="product-unit">{product.unit}</span></div><button className="icon-button add-button" type="button" aria-label={`Add ${product.name} to basket`} disabled={disabled || product.stock === 0} onClick={() => onAdd(product)}><Plus size={17} /></button></div>
       </div>
     </article>
   );
@@ -676,7 +679,7 @@ function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, 
         <section className="category-section"><div className="section-heading"><h2>Shop by category</h2><button className="text-button" type="button" onClick={() => setActiveCategory("All items")}>See all</button></div><CategoryPicker activeCategory={activeCategory} onChange={setActiveCategory} /></section>
         <section id="products"><div className="section-heading products-heading"><div><h2>Fresh from Masaka</h2><p>Fair market prices, updated by verified traders today</p></div><select className="sort-select" value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort products"><option value="featured">Today's picks</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option></select></div>
           {catalogError && <div className="empty-state" role="alert">{catalogError}</div>}
-          {catalogLoading ? <div className="empty-state" role="status">Loading products from Supabase...</div> : <div className="product-grid">{visibleProducts.map(product => <ProductCard key={product.id} product={product} onAdd={onAdd} disabled={cartLoading || ((cart.find(line => line.productId === product.id)?.quantity || 0) >= 99) || (!cart.some(line => line.productId === product.id) && cart.length >= 100)} />)}{visibleProducts.length === 0 && !catalogError && <div className="empty-state">No products match this search. Try another item or category.</div>}</div>}
+          {catalogLoading ? <div className="empty-state" role="status">Loading products from Supabase...</div> : <div className="product-grid">{visibleProducts.map(product => { const quantityInCart = cart.find(line => line.productId === product.id)?.quantity || 0; const maxQuantity = Math.min(99, Number.isInteger(product.stock) ? product.stock : 99); return <ProductCard key={product.id} product={product} onAdd={onAdd} disabled={cartLoading || quantityInCart >= maxQuantity || (!quantityInCart && cart.length >= 100)} />; })}{visibleProducts.length === 0 && !catalogError && <div className="empty-state">No products match this search. Try another item or category.</div>}</div>}
         </section>
       </div>
       {isGuest ? <aside className="side-column" aria-label="Your basket"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={onCheckout} onClear={onClearCart} isGuest cartLoading={cartLoading} /></aside> : demoMode ? <aside className="side-column" aria-label="Your Kasua account"><WalletPanel balance={walletBalance} notify={notify} /><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} /><DeliveryPanel order={order} onTrack={() => navigate("orders")} /><TrustPanel onVerify={onVerify} /><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside> : <aside className="side-column" aria-label="Account status"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} cartLoading={cartLoading} /><p className="account-intro">Your account is secure. Checkout and payment are not connected yet.</p><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside>}
@@ -688,14 +691,14 @@ function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, 
   </>;
 }
 
-function MerchantView({ inventory, onAddProduct, onVerify, notify, account, demoMode }) {
-  if (!demoMode) return <section className="merchant-connect-state"><div className="eyebrow"><Store size={14} /> Merchant account</div><h1>Merchant operations are not connected yet</h1><p>Your account is authenticated and your verification status is recorded. Listings, orders, payouts, and fulfillment will appear here after their server APIs are implemented.</p></section>;
+function MerchantView({ inventory, onAddProduct, onEditProduct, onVerify, notify, account, demoMode, inventoryLoading, inventoryError }) {
   const sales = 38400;
+  const categoriesCount = new Set(inventory.map(item => item.category).filter(Boolean)).size;
   return <>
     <div className="welcome-row merchant-welcome"><div><div className="eyebrow"><Sun size={14} /> Tuesday market, Masaka</div><h1>Good morning, {account.name}</h1></div><span className="account-role"><Store size={14} /> Verified merchant</span></div>
-    <section className="merchant-banner"><div><div className="hero-kicker"><BadgeCheck size={14} /> Trader workspace</div><h2>Your stall, reaching all of Masaka.</h2><p>Manage today's prices, orders and your Kasua trader reputation in one place.</p></div><button className="primary-button" type="button" onClick={onAddProduct}><Plus size={15} /> Add a product</button></section>
-    <div className="merchant-stats"><StatCard label="Today's sales" value={formatNaira(sales)} detail="↑ 12% this week" /><StatCard label="New orders" value="08" detail="3 need confirmation" /><StatCard label="Live products" value={inventory.length} detail="Across 4 categories" /><StatCard label="Trader rating" value={<>{"4.8 "}<span className="star-mark">★</span></>} detail="From 126 local buyers" /></div>
-    <div className="market-layout merchant-layout"><section className="side-panel inventory-panel"><div className="side-panel-header"><div><h2>Market inventory</h2><span className="subheading">Your listed products and today's prices</span></div><button className="text-button" type="button" onClick={onAddProduct}>+ Add item</button></div><div className="inventory-wrap"><table className="inventory-table"><thead><tr><th>Product</th><th>Price</th><th>Available</th><th>Price check</th></tr></thead><tbody>{inventory.map(item => <tr key={item.id}><td>{item.name}</td><td>{formatNaira(item.price)}</td><td><span className="stock-pill">{item.stock > 0 ? `${item.stock} in stock` : "Out of stock"}</span></td><td>{item.checked}</td></tr>)}</tbody></table></div></section>
+    <section className="merchant-banner"><div><div className="hero-kicker"><BadgeCheck size={14} /> Trader workspace</div><h2>Your stall, reaching all of Masaka.</h2><p>Manage product details, photos, prices, and stock from one place.</p></div><button className="primary-button" type="button" onClick={onAddProduct}><Plus size={15} /> Add a product</button></section>
+    <div className="merchant-stats">{demoMode && <><StatCard label="Today's sales" value={formatNaira(sales)} detail="Demo activity" /><StatCard label="New orders" value="08" detail="Sample orders" /></>}<StatCard label="Listed products" value={inventoryLoading ? "…" : inventory.length} detail={`${categoriesCount} categories`} />{demoMode && <StatCard label="Trader rating" value={<>{"4.8 "}<span className="star-mark">★</span></>} detail="Sample rating" />}</div>
+    <div className="market-layout merchant-layout"><section className="side-panel inventory-panel"><div className="side-panel-header"><div><h2>Market inventory</h2><span className="subheading">Create and update your products, prices, and available stock</span></div><button className="text-button" type="button" onClick={onAddProduct}>+ Add item</button></div>{demoMode && <p className="merchant-demo-note">Preview only: changes and product photos are kept in this session and are not published or saved permanently.</p>}{inventoryError && <p className="form-error merchant-inventory-error" role="alert">{inventoryError}</p>}<div className="inventory-wrap"><table className="inventory-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Available</th><th>Updated</th><th>Action</th></tr></thead><tbody>{inventoryLoading ? <tr><td colSpan="6">Loading your product listings…</td></tr> : inventory.map(item => <tr key={item.id}><td><div className="inventory-product">{item.imageUrl && <img className="inventory-thumb" src={item.imageUrl} alt="" />}{item.image ? <img className="inventory-thumb" src={`https://images.unsplash.com/${item.image}?auto=format&fit=crop&w=120&q=70`} alt="" /> : null}<div><strong>{item.name}</strong>{(item.description || item.brand || item.size || item.origin || item.specifications) && <details className="inventory-details"><summary>Specifications</summary>{item.description && <span>{item.description}</span>}{item.brand && <span>Brand: {item.brand}</span>}{item.size && <span>Size: {item.size}</span>}{item.origin && <span>Origin: {item.origin}</span>}{item.specifications && <span>{item.specifications}</span>}</details>}</div></div></td><td>{item.category || "—"}</td><td>{formatNaira(item.price)}<small className="inventory-unit">{item.unit}</small></td><td><span className={`stock-pill ${item.stock === 0 ? "empty" : ""}`}>{item.stock > 0 ? `${item.stock} in stock` : "Out of stock"}</span></td><td>{item.checked}</td><td><button className="inventory-edit-button" type="button" onClick={() => onEditProduct(item)}>Edit</button></td></tr>)}{!inventoryLoading && !inventoryError && inventory.length === 0 && <tr><td colSpan="6">No products yet. Add your first product to get started.</td></tr>}</tbody></table></div></section>
       <aside className="side-column"><section className="verify-panel"><h3><MapPinCheck size={15} /> Verified Kasua trader</h3><p>Your stall and location have been checked. Keep your profile current to build buyer trust.</p><button type="button" onClick={onVerify}>View verification <ArrowRight size={13} /></button></section><section className="side-panel"><div className="side-panel-header"><h2>Orders to prepare</h2><button className="text-button" type="button" onClick={() => notify("All current orders are shown")}>See all</button></div><OrderSummary id="KA-2048" detail="Needs confirmation · 9:42 am" /><OrderSummary id="KA-2042" detail="Hub quality check · 9:10 am" /></section><section className="side-panel merchant-wallet-row"><div className="trust-icon"><Coins size={15} /></div><div><strong>Merchant wallet</strong><span>₦86,200 available · View payouts</span></div><ChevronRight className="chev" size={15} /></section></aside>
     </div>
   </>;
@@ -710,11 +713,91 @@ function CheckoutDialog({ totals, walletBalance, onClose, onPlaceOrder }) {
   return <Dialog title="Review your order" onClose={onClose}><div className="dialog-body"><div className="order-lines"><div className="order-line"><span>Items subtotal</span><strong>{formatNaira(totals.subtotal)}</strong></div><div className="order-line"><span>Delivery to Masaka</span><strong>{formatNaira(totals.delivery)}</strong></div><div className="order-line"><span>Kasua service fee</span><strong>{formatNaira(totals.service)}</strong></div><div className="order-line total"><span>Estimated total</span><strong>{formatNaira(totals.total)}</strong></div></div><div className="payment-label">Choose how to pay</div><div className="payment-options">{paymentMethods.map(payment => <label className={`payment-option ${method === payment.id ? "selected" : ""}`} key={payment.id}><input type="radio" name="payment" value={payment.id} checked={method === payment.id} disabled={payment.id === "wallet" && !canPayWithWallet} onChange={() => setMethod(payment.id)} /><span>{payment.title}</span><small>{payment.id === "wallet" ? `${formatNaira(walletBalance)} available` : payment.detail}</small></label>)}</div>{method === "wallet" && !canPayWithWallet && <p className="form-error">Wallet balance is too low. Choose another payment method.</p>}<button className="primary-button wide-button" type="button" disabled={method === "wallet" && !canPayWithWallet} onClick={() => onPlaceOrder(method, totals)}>Place order · {formatNaira(totals.total)}</button><p className="fine-print">Demo checkout only. Payment providers are not connected yet.</p></div></Dialog>;
 }
 
-function ProductDialog({ onClose, onSave }) {
-  const [form, setForm] = useState({ name: "", price: "", category: "Produce", unit: "", stock: "" });
-  function update(event) { setForm(current => ({ ...current, [event.target.name]: event.target.value })); }
-  function submit(event) { event.preventDefault(); onSave({ ...form, price: Number(form.price), stock: Number(form.stock) || 0 }); }
-  return <Dialog title="List a market product" onClose={onClose}><form className="dialog-body" onSubmit={submit}><div className="form-field"><label htmlFor="product-name">Product name</label><input id="product-name" name="name" value={form.name} onChange={update} required placeholder="e.g. Sweet potatoes" /></div><div className="form-row"><div className="form-field"><label htmlFor="product-price">Today's price (₦)</label><input id="product-price" name="price" type="number" min="1" value={form.price} onChange={update} required placeholder="e.g. 2500" /></div><div className="form-field"><label htmlFor="product-stock">Quantity available</label><input id="product-stock" name="stock" type="number" min="0" value={form.stock} onChange={update} placeholder="e.g. 12" /></div></div><div className="form-field"><label htmlFor="product-category">Category</label><select id="product-category" name="category" value={form.category} onChange={update}>{categories.filter(category => category.name !== "All items").map(category => <option key={category.name}>{category.name}</option>)}</select></div><div className="form-field"><label htmlFor="product-unit">Unit or quantity</label><input id="product-unit" name="unit" value={form.unit} onChange={update} placeholder="e.g. per basket" /></div><button className="primary-button wide-button" type="submit">List product</button><p className="fine-print">Buyers see your current price and the time you updated it.</p></form></Dialog>;
+function ProductDialog({ onClose, onSave, initialProduct, demoMode }) {
+  const [form, setForm] = useState({
+    name: initialProduct?.name || "",
+    price: initialProduct?.price ?? "",
+    category: initialProduct?.category || "Produce",
+    unit: initialProduct?.unit || "",
+    stock: initialProduct?.stock ?? "",
+    description: initialProduct?.description || "",
+    brand: initialProduct?.brand || "",
+    size: initialProduct?.size || "",
+    origin: initialProduct?.origin || "",
+    specifications: initialProduct?.specifications || "",
+    condition: initialProduct?.condition || "new",
+  });
+  const [photo, setPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(initialProduct?.imageUrl || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => () => {
+    if (photoPreview.startsWith("blob:")) URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
+  function update(event) {
+    setError("");
+    setForm(current => ({ ...current, [event.target.name]: event.target.value }));
+  }
+  function choosePhoto(event) {
+    const file = event.target.files?.[0] || null;
+    setError("");
+    try {
+      validateMerchantProductPhoto(file);
+      setPhoto(file);
+      setPhotoPreview(file ? URL.createObjectURL(file) : initialProduct?.imageUrl || "");
+    } catch (validationError) {
+      setPhoto(null);
+      event.target.value = "";
+      setError(validationError.message);
+    }
+  }
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const photoDataUrl = demoMode && photo ? await readFileAsDataUrl(photo) : null;
+      const result = await onSave({
+        ...form,
+        price: Number(form.price),
+        stock: Number(form.stock),
+        photo,
+        photoDataUrl,
+        imageUrl: photoDataUrl || (!photo ? initialProduct?.imageUrl : null),
+        imagePath: !photo ? initialProduct?.imagePath : null,
+      }, initialProduct);
+      if (result?.error) setError(result.error);
+    } catch (saveError) {
+      setError(saveError.message || "Could not save this product.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <Dialog title={initialProduct ? "Edit product" : "Create a product listing"} onClose={onClose}><form className="dialog-body product-form" onSubmit={submit}>
+    <div className="product-form-intro">Keep your catalog accurate so customers can compare products, prices, and availability.</div>
+    <div className="form-field"><label htmlFor="product-name">Product name</label><input id="product-name" name="name" value={form.name} onChange={update} minLength="2" maxLength="120" required placeholder="e.g. Sweet potatoes" /></div>
+    <div className="form-field"><label htmlFor="product-description">Description</label><textarea id="product-description" name="description" value={form.description} onChange={update} maxLength="2000" rows="3" placeholder="Describe quality, freshness, or what makes this product useful." /></div>
+    <div className="form-row"><div className="form-field"><label htmlFor="product-price">Price (₦)</label><input id="product-price" name="price" type="number" min="1" max="10000000000" step="1" value={form.price} onChange={update} required placeholder="e.g. 2500" /></div><div className="form-field"><label htmlFor="product-stock">Stock available</label><input id="product-stock" name="stock" type="number" min="0" max="1000000" step="1" value={form.stock} onChange={update} required placeholder="e.g. 12" /></div></div>
+    <div className="form-row"><div className="form-field"><label htmlFor="product-category">Category</label><select id="product-category" name="category" value={form.category} onChange={update} required>{categories.filter(category => category.name !== "All items").map(category => <option key={category.name}>{category.name}</option>)}</select></div><div className="form-field"><label htmlFor="product-unit">Selling unit</label><input id="product-unit" name="unit" value={form.unit} onChange={update} maxLength="80" required placeholder="e.g. per basket" /></div></div>
+    <div className="product-specification-heading"><strong>Product specifications</strong><span>Help buyers understand the exact item and pack size.</span></div>
+    <div className="form-row"><div className="form-field"><label htmlFor="product-brand">Brand (optional)</label><input id="product-brand" name="brand" value={form.brand} onChange={update} maxLength="120" placeholder="Brand or grower" /></div><div className="form-field"><label htmlFor="product-size">Size / pack weight</label><input id="product-size" name="size" value={form.size} onChange={update} maxLength="80" placeholder="e.g. 5 kg bag" /></div></div>
+    <div className="form-row"><div className="form-field"><label htmlFor="product-origin">Origin (optional)</label><input id="product-origin" name="origin" value={form.origin} onChange={update} maxLength="120" placeholder="Growing or production area" /></div><div className="form-field"><label htmlFor="product-condition">Condition</label><select id="product-condition" name="condition" value={form.condition} onChange={update}><option value="new">New</option><option value="used">Used</option><option value="refurbished">Refurbished</option><option value="not_applicable">Not applicable</option></select></div></div>
+    <div className="form-field"><label htmlFor="product-specifications">Additional specifications</label><textarea id="product-specifications" name="specifications" value={form.specifications} onChange={update} maxLength="1000" rows="2" placeholder="Variety, ingredients, grade, dimensions, or storage details." /></div>
+    <div className="form-field"><label htmlFor="product-photo">Product photograph <small>JPG, PNG, or WebP · up to 5 MB</small></label><input id="product-photo" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onChange={choosePhoto} />{photoPreview && <img className="product-photo-preview" src={photoPreview} alt="Product photo preview" />}</div>
+    {demoMode && <p className="demo-safety-notice"><ShieldAlert size={16} /> Preview listings and photos are session-only. Production catalog publishing requires the merchant product migration.</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <button className="primary-button wide-button" type="submit" disabled={busy || Boolean(error)}>{busy ? "Saving listing…" : initialProduct ? "Save product changes" : "Create product listing"}</button>
+    <p className="fine-print">{demoMode ? "This is a non-persistent preview. No listing is published to the live marketplace." : "Your verified listing will be visible when in stock."}</p>
+  </form></Dialog>;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read the selected product photo."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function VerificationDialog({ onClose }) {
@@ -743,7 +826,9 @@ export default function App() {
     return () => window.removeEventListener("popstate", syncEntryPage);
   }, []);
   const [products, setProducts] = useDemoState(demoMode ? starterProducts : []);
-  const [inventory, setInventory] = useDemoState(starterInventory);
+  const [inventory, setInventory] = useDemoState(demoMode ? starterInventory : []);
+  const [inventoryLoading, setInventoryLoading] = useState(!demoMode);
+  const [inventoryError, setInventoryError] = useState("");
   const [cart, setCart] = useLocalCart(demoMode || account?.role !== "consumer");
   const [cartReadyUserId, setCartReadyUserId] = useState(null);
   const [walletBalance, setWalletBalance] = useDemoState(12450);
@@ -760,6 +845,7 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState("All items");
   const [sort, setSort] = useState("featured");
   const [dialog, setDialog] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
   const [checkoutTotals, setCheckoutTotals] = useState(null);
   const [toast, setToast] = useState("");
   const [supportCases, setSupportCases] = useState([]);
@@ -781,6 +867,18 @@ export default function App() {
       .finally(() => { if (active) setCatalogLoading(false); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (demoMode || account?.role !== "merchant" || account.verificationStatus !== "verified") return undefined;
+    let active = true;
+    setInventoryLoading(true);
+    setInventoryError("");
+    loadMerchantProducts()
+      .then(items => { if (active) setInventory(items); })
+      .catch(error => { if (active) setInventoryError(`Could not load your listings: ${error.message}`); })
+      .finally(() => { if (active) setInventoryLoading(false); });
+    return () => { active = false; };
+  }, [demoMode, account?.id, account?.role, account?.verificationStatus]);
 
   useEffect(() => {
     if (!demoMode || !demoAccount?.phone) return;
@@ -908,6 +1006,12 @@ export default function App() {
     });
   }
   function addToCart(product) {
+    const currentQuantity = cart.find(line => line.productId === product.id)?.quantity || 0;
+    const maxQuantity = Math.min(99, Number.isInteger(product.stock) ? product.stock : 99);
+    if (currentQuantity >= maxQuantity) {
+      notify(maxQuantity === 0 ? `${product.name} is out of stock` : `Only ${maxQuantity} ${product.unit || "items"} available`);
+      return;
+    }
     setCart(current => {
       const existing = current.find(line => line.productId === product.id);
       if (existing) return current.map(line => line.productId === product.id ? { ...line, quantity: Math.min(99, line.quantity + 1) } : line);
@@ -916,7 +1020,9 @@ export default function App() {
     notify(`${product.name} added to your basket`);
   }
   function changeQuantity(productId, difference) {
-    setCart(current => current.map(line => line.productId === productId ? { ...line, quantity: Math.min(99, line.quantity + difference) } : line).filter(line => line.quantity > 0));
+    const product = products.find(item => item.id === productId);
+    const maxQuantity = Math.min(99, Number.isInteger(product?.stock) ? product.stock : 99);
+    setCart(current => current.map(line => line.productId === productId ? { ...line, quantity: Math.min(maxQuantity, line.quantity + difference) } : line).filter(line => line.quantity > 0));
   }
   function openCheckout(totals) {
     if (!account) {
@@ -952,13 +1058,59 @@ export default function App() {
     setDialog(null);
     notify(`Order placed with ${method === "ussd" ? "USSD" : method === "wallet" ? "Kasua wallet" : method}. Tracking starts at the quality hub.`);
   }
-  function saveProduct(form) {
-    const id = `product-${Date.now()}`;
-    const item = { id, name: form.name.trim(), category: form.category, price: form.price, stock: form.stock, unit: form.unit.trim() || "per item", seller: "Your verified stall", rating: "New", note: "Price checked", image: "photo-1542838132-92c53300491e" };
-    setProducts(current => [item, ...current]);
-    setInventory(current => [{ id, name: form.name.trim(), price: form.price, stock: form.stock, checked: "Updated just now" }, ...current]);
+  async function saveProduct(form, existingProduct) {
+    if (!demoMode) {
+      const savedProduct = await saveMerchantProduct(account.id, form, existingProduct);
+      setDialog(null);
+      setEditingProduct(null);
+      notify(`${form.name.trim()} ${existingProduct ? "updated" : "listed"} successfully.`);
+      try {
+        setInventory(await loadMerchantProducts());
+        setInventoryError("");
+        setProducts(await loadPublicProducts());
+      } catch (error) {
+        setInventoryError(`Product saved, but catalog data could not refresh: ${error.message}`);
+      }
+      if (savedProduct?.warning) notify(savedProduct.warning);
+      return null;
+    }
+
+    const id = existingProduct?.id || `product-${Date.now()}`;
+    const item = {
+      ...existingProduct,
+      id,
+      name: form.name.trim(),
+      category: form.category,
+      price: form.price,
+      stock: form.stock,
+      unit: form.unit.trim(),
+      description: form.description.trim(),
+      brand: form.brand.trim(),
+      size: form.size.trim(),
+      origin: form.origin.trim(),
+      specifications: form.specifications.trim(),
+      condition: form.condition,
+      imageUrl: form.imageUrl || existingProduct?.imageUrl || null,
+      checked: "Updated just now",
+      seller: "Your verified stall",
+      rating: "New",
+      note: "Price checked",
+      image: "photo-1542838132-92c53300491e",
+    };
+    const listingId = existingProduct?.catalogProductId || id;
+    const imageProduct = { ...item, id: listingId, catalogProductId: listingId, imageUrl: item.imageUrl, productId: existingProduct?.productId || listingId };
+    if (existingProduct) {
+      setInventory(current => current.map(existing => existing.id === id ? { ...item, catalogProductId: listingId } : existing));
+      setProducts(current => current.some(existing => existing.id === listingId)
+        ? current.map(existing => existing.id === listingId ? { ...existing, ...imageProduct } : existing)
+        : [imageProduct, ...current]);
+    } else {
+      setInventory(current => [item, ...current]);
+      setProducts(current => [imageProduct, ...current]);
+    }
     setDialog(null);
-    notify(`${item.name} listed at ${formatNaira(item.price)}`);
+    setEditingProduct(null);
+    notify(`${item.name} ${existingProduct ? "updated" : "listed"} in preview.`);
   }
   function refreshOrder() {
     setOrder(current => ({ ...current, updatedAt: new Intl.DateTimeFormat("en-NG", { hour: "numeric", minute: "2-digit" }).format(new Date()) }));
@@ -1229,7 +1381,7 @@ export default function App() {
   }
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0);
   const productHandler = () => {
-    if (!demoMode) return notify("Product management will be enabled when the merchant API is connected.");
+    setEditingProduct(null);
     setDialog("addProduct");
   };
 
@@ -1250,9 +1402,9 @@ export default function App() {
 
   return <div className="app-shell" id="top">
     <Header search={search} setSearch={setSearch} cartCount={cartCount} walletBalance={walletBalance} onWallet={() => document.getElementById("wallet")?.scrollIntoView({ behavior: "smooth", block: "center" })} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={account} onLogout={logout} demoMode={demoMode} />
-    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onVerify={() => setDialog("verification")} notify={notify} account={account} demoMode={demoMode} />}</main>
+    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }} onVerify={() => setDialog("verification")} notify={notify} account={account} demoMode={demoMode} inventoryLoading={inventoryLoading} inventoryError={inventoryError} />}</main>
     {dialog === "checkout" && checkoutTotals && <CheckoutDialog totals={checkoutTotals} walletBalance={walletBalance} onClose={() => setDialog(null)} onPlaceOrder={placeOrder} />}
-    {dialog === "addProduct" && <ProductDialog onClose={() => setDialog(null)} onSave={saveProduct} />}
+    {dialog === "addProduct" && <ProductDialog key={editingProduct?.id || "new-product"} onClose={() => { setDialog(null); setEditingProduct(null); }} onSave={saveProduct} initialProduct={editingProduct} demoMode={demoMode} />}
     {dialog === "verification" && <VerificationDialog onClose={() => setDialog(null)} />}
     {dialog === "complaint" && <ComplaintDialog onClose={() => setDialog(null)} onSubmit={submitCustomerComplaint} />}
     <Toast message={toast} />
