@@ -2,8 +2,8 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight, ArrowUpRight, BadgeCheck, Bike, Check, ChevronDown, ChevronRight,
   CircleHelp, ClipboardList, Coins, Fish, Grid2X2, House, Leaf, MapPin, MapPinCheck, Package,
-  PackageCheck, Plus, RefreshCw, Route, ScanEye, Search, ShieldCheck, ShoppingBag,
-  ShoppingBasket, Star, Store, Sun, UserRound, Wallet, Wheat, X,
+  LogIn, LogOut, PackageCheck, Plus, RefreshCw, Route, ScanEye, ShieldCheck, ShoppingBag,
+  ShoppingBasket, Star, Store, Sun, UserPlus, UserRound, Wallet, Wheat, X,
 } from "lucide-react";
 import { categories, demoOrder, formatNaira, readStored, starterInventory, starterProducts } from "./data.js";
 import AdminView from "./AdminView.jsx";
@@ -93,7 +93,7 @@ function ComplaintDialog({ onClose, onSubmit }) {
   </Dialog>;
 }
 
-function Header({ search, setSearch, cartCount, walletBalance, onWallet, onCart, account, onLogout, demoMode, isGuest = false, onLogin, onRegister, onAdmin, adminLabel }) {
+function Header({ search, setSearch, cartCount, walletBalance, onWallet, onCart, account, onLogout, demoMode, isGuest = false, onLogin, onRegister }) {
   return (
     <header className="topbar">
       <div className="topbar-inner">
@@ -101,9 +101,9 @@ function Header({ search, setSearch, cartCount, walletBalance, onWallet, onCart,
         <button className="location-button" type="button">
           <MapPin className="pin" size={17} /><span><strong>Deliver to</strong><small>Masaka, Nasarawa <ChevronDown size={12} /></small></span>
         </button>
-        <label className="searchbox"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)} type="search" placeholder="Search tomatoes, rice, traders..." aria-label="Search marketplace" /></label>
+        <label className="searchbox"><input value={search} onChange={event => setSearch(event.target.value)} type="search" placeholder="Search tomatoes, rice, traders..." aria-label="Search marketplace" /></label>
         <div className="top-actions">
-          {isGuest ? <><button className="text-button" type="button" onClick={onLogin}>Sign in</button><button className="primary-button" type="button" onClick={onRegister}>Create account</button>{onAdmin && <button className="text-button" type="button" onClick={onAdmin}>{adminLabel}</button>}</> : <><button className="wallet-link" type="button" onClick={onWallet} disabled={!demoMode} title={demoMode ? "Kasua wallet demo balance" : "Kasua wallet is not connected"}><Wallet size={16} /><span>{demoMode ? formatNaira(walletBalance) : "Wallet unavailable"}</span></button><button className="icon-button" type="button" aria-label="View basket" onClick={onCart}><ShoppingBasket size={17} /><span className="cart-count">{cartCount}</span></button><button className="avatar" type="button" onClick={onLogout} aria-label={`Sign out ${account.name}`} title={`Sign out ${account.name}`}>{account.name.slice(0, 1).toUpperCase()}</button></>}
+          {isGuest ? <><button className="text-button header-auth-action" type="button" onClick={onLogin}><LogIn size={17} /><span>Sign in</span></button><button className="primary-button header-auth-action" type="button" onClick={onRegister}><UserPlus size={17} /><span>Create account</span></button></> : <><button className="wallet-link" type="button" onClick={onWallet} disabled={!demoMode} title={demoMode ? "Kasua wallet demo balance" : "Kasua wallet is not connected"}><Wallet size={16} /><span>{demoMode ? formatNaira(walletBalance) : "Wallet unavailable"}</span></button><button className="icon-button" type="button" aria-label="View basket" onClick={onCart}><ShoppingBasket size={17} /><span className="cart-count">{cartCount}</span></button><button className="avatar" type="button" onClick={onLogout} aria-label={`Sign out ${account.name}`} title={`Sign out ${account.name}`}>{account.name.slice(0, 1).toUpperCase()}</button></>}
           {isGuest && <button className="icon-button" type="button" aria-label={`View basket, ${cartCount} items`} onClick={onCart}><ShoppingBasket size={17} /><span className="cart-count">{cartCount}</span></button>}
         </div>
       </div>
@@ -111,9 +111,9 @@ function Header({ search, setSearch, cartCount, walletBalance, onWallet, onCart,
   );
 }
 
-function LandingPage({ onRegister, onLogin, onAdmin, adminLabel = "Admin preview" }) {
+function LandingPage({ onRegister, onLogin }) {
   return <main className="landing-page" id="top">
-    <header className="landing-header"><Brand /><nav aria-label="Main navigation">{onAdmin && <button className="text-button" type="button" onClick={onAdmin}>{adminLabel}</button>}<button className="text-button" type="button" onClick={onLogin}>Login</button><button className="primary-button" type="button" onClick={onRegister}>Create account <ArrowRight size={15} /></button></nav></header>
+    <header className="landing-header"><Brand /><nav aria-label="Main navigation"><button className="text-button" type="button" onClick={onLogin}>Login</button><button className="primary-button" type="button" onClick={onRegister}>Create account <ArrowRight size={15} /></button></nav></header>
     <section className="landing-hero"><div className="landing-hero-copy"><div className="hero-kicker"><BadgeCheck size={14} /> Masaka's trusted local market</div><h1>Good food, from your market to your door.</h1><p>Shop verified traders, get your goods checked at the local hub, and have your order delivered across Masaka.</p><div className="landing-actions"><button className="primary-button" type="button" onClick={onRegister}>Get started <ArrowRight size={15} /></button><button className="landing-secondary" type="button" onClick={onLogin}>I already have an account</button></div><div className="landing-location"><MapPin size={15} /> Masaka, Nasarawa State</div></div></section>
     <section className="landing-benefits" aria-label="Kasua marketplace benefits"><div><ShieldCheck size={19} /><span><strong>Checked at the hub</strong><small>Quality checks before dispatch</small></span></div><div><Store size={19} /><span><strong>Local traders</strong><small>Buy directly from Masaka stalls</small></span></div><div><Bike size={19} /><span><strong>Market to your door</strong><small>Order delivery in one place</small></span></div></section>
   </main>;
@@ -325,20 +325,15 @@ function MobileBottomNav({ activeItem, onNavigate }) {
   </nav>;
 }
 
-function MobileNavDialog({ type, accountName, isGuest, onClose, onLogin, onLogout }) {
-  if (!type) return null;
+function GuestNavDialog({ type, onClose, onLogin, onRegister }) {
   const isOrders = type === "orders";
   return <Dialog title={isOrders ? "Your orders" : "Your profile"} onClose={onClose}>
-    {isOrders ? <div className="mobile-nav-dialog">
-      <div className="status-icon"><ClipboardList size={18} /></div>
-      <div><strong>Sign in to view your orders</strong><p>Your orders and delivery updates are saved to your Kasua account.</p></div>
-      <button className="primary-button wide-button" type="button" onClick={() => { onClose(); onLogin?.(); }}>Sign in</button>
-    </div> : <div className="mobile-nav-dialog">
-      <div className="profile-summary"><span className="profile-avatar">{isGuest ? "G" : accountName.slice(0, 1).toUpperCase()}</span><div><strong>{isGuest ? "Guest account" : accountName}</strong><p>{isGuest ? "Browsing the Masaka market" : "Consumer account"}</p></div></div>
-      {isGuest
-        ? <button className="primary-button wide-button" type="button" onClick={() => { onClose(); onLogin?.(); }}>Sign in to your account</button>
-        : <button className="secondary-button wide-button" type="button" onClick={() => { onClose(); onLogout?.(); }}>Sign out</button>}
-    </div>}
+    <div className="mobile-nav-dialog">
+      <div className="status-icon">{isOrders ? <ClipboardList size={18} /> : <UserRound size={18} />}</div>
+      <div><strong>{isOrders ? "Sign in to view your orders" : "Sign in to your profile"}</strong><p>{isOrders ? "Your order history and delivery updates are saved to your Kasua account." : "Sign in to view your account details and shopping preferences."}</p></div>
+      <button className="primary-button wide-button" type="button" onClick={onLogin}>Sign in</button>
+      <button className="secondary-button wide-button" type="button" onClick={onRegister}>Create account</button>
+    </div>
   </Dialog>;
 }
 
@@ -455,7 +450,45 @@ function SupportPanel({ onComplaint, supportCases }) {
   return <section className="side-panel"><div className="side-panel-header"><h2>Need help?</h2><CircleHelp size={16} /></div><div className="basket-content"><p className="account-intro">Tell our support team about an account or order issue.</p><button className="text-button" type="button" onClick={onComplaint}>Open a support case <ArrowRight size={13} /></button>{supportCases.length > 0 && <div className="support-case-list"><strong>Your support cases</strong>{supportCases.map(item => <div key={item.id}><span>{item.subject}</span><small>{item.status.replaceAll("_", " ")} · {new Date(item.updated_at).toLocaleDateString("en-NG")}</small></div>)}</div>}</div></section>;
 }
 
-function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, walletBalance, notify, search, activeCategory, setActiveCategory, sort, setSort, onTrack, onVerify, onComplaint, onLogin, onLogout, supportCases, order, accountName, demoMode, isGuest = false, catalogLoading = false, catalogError = "", cartLoading = false, purchaseHistory, priorities, onTogglePriority }) {
+function CustomerOrdersPage({ accountName, isGuest, purchaseHistory, order, onRefreshOrder, onLogin, onRegister, demoMode }) {
+  const orders = [...purchaseHistory];
+  if (demoMode && order?.id && !orders.some(item => item.id === order.id)) orders.unshift(order);
+  const stages = ["Order received", "Quality hub", "On the way", "Delivered"];
+  return <section className="customer-page" aria-labelledby="orders-page-title">
+    <div className="customer-page-heading"><div><span className="eyebrow"><ClipboardList size={14} /> Order history</span><h1 id="orders-page-title">Your orders</h1><p>Follow your deliveries and review past purchases.</p></div>{!isGuest && <span className="page-count">{orders.length} {orders.length === 1 ? "order" : "orders"}</span>}</div>
+    {isGuest ? <section className="customer-page-card customer-page-empty"><div className="status-icon"><ShoppingBag size={18} /></div><div><h2>Sign in to view your orders</h2><p>Your order history and delivery updates are saved to your Kasua account.</p><div className="customer-page-actions"><button className="primary-button" type="button" onClick={onLogin}>Sign in</button><button className="secondary-button" type="button" onClick={onRegister}>Create account</button></div></div></section>
+      : orders.length ? <div className="customer-order-list">{orders.map((item, index) => {
+        const isCurrent = item.id === order?.id;
+        const status = isCurrent ? order.status : item.status;
+        const statusLabel = isCurrent ? order.statusLabel : item.statusLabel || "Order placed";
+        const itemCount = item.items.reduce((sum, line) => sum + line.quantity, 0);
+        const orderDate = item.createdAt ? new Date(item.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : item.updatedAt || "Recent";
+        return <article className="customer-page-card customer-order-card" key={`${item.id}-${index}`}>
+          <div className="customer-order-heading"><div><span className="eyebrow">{isCurrent ? "Latest delivery" : "Previous order"}</span><h2>Order {item.id}</h2><p>{orderDate} · {itemCount} {itemCount === 1 ? "item" : "items"} · {item.area || "Masaka"}</p></div><span className="order-status-pill">{statusLabel}</span></div>
+          <ul className="customer-order-items">{item.items.map((line, lineIndex) => <li key={`${line.productId || line.name}-${lineIndex}`}><span>{line.name}<small>Quantity {line.quantity}</small></span><strong>{formatNaira(line.price * line.quantity)}</strong></li>)}</ul>
+          {isCurrent && <><div className="order-progress" aria-label="Delivery progress">{stages.map((stage, stageIndex) => <div className={`order-progress-step ${stageIndex <= status ? "complete" : ""}`} key={stage}><span /><small>{stage}</small></div>)}</div><div className="customer-order-footer"><span>Last updated {order.updatedAt}</span><button className="text-button" type="button" onClick={onRefreshOrder}><RefreshCw size={14} /> Refresh status</button></div></>}
+        </article>;
+      })}</div> : <section className="customer-page-card customer-page-empty"><div className="status-icon"><ShoppingBag size={18} /></div><div><h2>No orders yet</h2><p>Your purchases will appear here once you place an order.</p></div></section>}
+    {!isGuest && !demoMode && <p className="customer-page-note">Online order history will appear here when order services are connected.</p>}
+    {!isGuest && <p className="customer-page-note">Signed in as {accountName}.</p>}
+  </section>;
+}
+
+function CustomerProfilePage({ account, isGuest, priorities, onTogglePriority, onLogin, onRegister, onLogout }) {
+  return <section className="customer-page" aria-labelledby="profile-page-title">
+    <div className="customer-page-heading"><div><span className="eyebrow"><UserRound size={14} /> Account</span><h1 id="profile-page-title">Your profile</h1><p>Manage your Kasua account and shopping preferences.</p></div></div>
+    {isGuest ? <section className="customer-page-card customer-page-empty"><div className="profile-summary"><span className="profile-avatar">G</span><div><h2>Browsing as a guest</h2><p>Sign in to keep your account and preferences together.</p></div></div><div className="customer-page-actions"><button className="primary-button" type="button" onClick={onLogin}>Sign in</button><button className="secondary-button" type="button" onClick={onRegister}>Create account</button></div></section>
+      : <><section className="customer-page-card customer-profile-card"><div className="profile-summary"><span className="profile-avatar">{account.name.slice(0, 1).toUpperCase()}</span><div><h2>{account.name}</h2><p>Consumer account</p></div><span className="verified-profile"><ShieldCheck size={14} /> Active</span></div><div className="profile-details">{account.email && <div><span>Email address</span><strong>{account.email}</strong></div>}{account.phone && <div><span>Phone number</span><strong>{account.phone}</strong></div>}<div><span>Account type</span><strong>Consumer</strong></div></div></section>
+        <section className="customer-page-card profile-preferences"><div className="dashboard-card-heading"><div><span className="eyebrow">Personalize your market</span><h2>Shopping priorities</h2></div><Star size={18} /></div><p>Choose what matters most when we show market picks.</p><div className="priority-options">{customerPriorityOptions.map(({ id, label, description, Icon }) => {
+          const selected = priorities.includes(id);
+          return <button key={id} type="button" className={`priority-option ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => onTogglePriority(id)}><span className="priority-icon"><Icon size={18} /></span><span className="priority-copy"><strong>{label}</strong><small>{description}</small></span><span className="priority-check" aria-hidden="true">{selected ? <Check size={15} /> : null}</span></button>;
+        })}</div><p className="dashboard-note">Preferences are saved on this device.</p></section>
+        <section className="customer-page-card profile-signout"><div><h2>Sign out</h2><p>Sign out of your Kasua account on this device.</p></div><button className="secondary-button" type="button" onClick={onLogout}><LogOut size={15} /> Sign out</button></section>
+      </>}
+  </section>;
+}
+
+function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, walletBalance, notify, search, activeCategory, setActiveCategory, sort, setSort, onVerify, onComplaint, onLogin, onRegister, onLogout, supportCases, order, account, accountName, demoMode, isGuest = false, catalogLoading = false, catalogError = "", cartLoading = false, purchaseHistory, priorities, onTogglePriority, onRefreshOrder }) {
   const [activeNavItem, setActiveNavItem] = useState("market");
   const [navDialog, setNavDialog] = useState(null);
   const deferredSearch = useDeferredValue(search);
@@ -474,16 +507,19 @@ function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, 
   }, [cart, products]);
   const cartCount = cart.reduce((sum, line) => sum + line.quantity, 0);
   function navigate(item) {
-    setActiveNavItem(item);
-    if (item === "dashboard" || item === "market") window.scrollTo({ top: 0, behavior: "smooth" });
-    if (item === "orders") {
-      if (onTrack) onTrack();
-      else setNavDialog("orders");
+    if (isGuest && (item === "orders" || item === "profile")) {
+      setNavDialog(item);
+      return;
     }
-    if (item === "profile") setNavDialog("profile");
+    setActiveNavItem(item);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
   return <>
+    <MobileBottomNav activeItem={activeNavItem} onNavigate={navigate} />
     {activeNavItem === "dashboard" ? <CustomerDashboard accountName={accountName} isGuest={isGuest} products={products} purchaseHistory={purchaseHistory} priorities={priorities} onTogglePriority={onTogglePriority} onAdd={onAdd} onMarket={() => navigate("market")} catalogLoading={catalogLoading} /> : <>
+    {activeNavItem === "orders" && <CustomerOrdersPage accountName={accountName} isGuest={isGuest} purchaseHistory={purchaseHistory} order={order} onRefreshOrder={onRefreshOrder} onLogin={onLogin} onRegister={onRegister} demoMode={demoMode} />}
+    {activeNavItem === "profile" && <CustomerProfilePage account={account} isGuest={isGuest} priorities={priorities} onTogglePriority={onTogglePriority} onLogin={onLogin} onRegister={onRegister} onLogout={onLogout} />}
+    {activeNavItem === "market" && <>
     {!demoMode && <div className="backend-banner" role="status"><ShieldCheck size={16} /><span><strong>{isGuest ? "Browse without an account." : "Your account is connected."}</strong> Products and merchant offers are loaded from Supabase. {isGuest ? "Your basket stays on this device. Sign in to continue; checkout and payment are unavailable." : "Checkout and payment are not connected yet."}</span></div>}
     <div className="welcome-row"><div><div className="eyebrow"><Sun size={14} /> Tuesday market, Masaka</div><h1>{isGuest ? "Browse today's market" : `Good morning, ${accountName}`}</h1></div><span className="account-role"><ShoppingBag size={14} /> {isGuest ? "Guest browsing" : "Consumer account"}</span></div>
     <div className="market-layout">
@@ -494,12 +530,12 @@ function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, 
           {catalogLoading ? <div className="empty-state" role="status">Loading products from Supabase...</div> : <div className="product-grid">{visibleProducts.map(product => <ProductCard key={product.id} product={product} onAdd={onAdd} disabled={cartLoading || ((cart.find(line => line.productId === product.id)?.quantity || 0) >= 99) || (!cart.some(line => line.productId === product.id) && cart.length >= 100)} />)}{visibleProducts.length === 0 && !catalogError && <div className="empty-state">No products match this search. Try another item or category.</div>}</div>}
         </section>
       </div>
-      {isGuest ? <aside className="side-column" aria-label="Your basket"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={onCheckout} onClear={onClearCart} isGuest cartLoading={cartLoading} /></aside> : demoMode ? <aside className="side-column" aria-label="Your Kasua account"><WalletPanel balance={walletBalance} notify={notify} /><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} /><DeliveryPanel order={order} onTrack={onTrack} /><TrustPanel onVerify={onVerify} /><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside> : <aside className="side-column" aria-label="Account status"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} cartLoading={cartLoading} /><p className="account-intro">Your account is secure. Checkout and payment are not connected yet.</p><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside>}
+      {isGuest ? <aside className="side-column" aria-label="Your basket"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={onCheckout} onClear={onClearCart} isGuest cartLoading={cartLoading} /></aside> : demoMode ? <aside className="side-column" aria-label="Your Kasua account"><WalletPanel balance={walletBalance} notify={notify} /><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} /><DeliveryPanel order={order} onTrack={() => navigate("orders")} /><TrustPanel onVerify={onVerify} /><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside> : <aside className="side-column" aria-label="Account status"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} cartLoading={cartLoading} /><p className="account-intro">Your account is secure. Checkout and payment are not connected yet.</p><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside>}
     </div>
     <span className="sr-only">{cartCount} items in your basket</span>
     </>}
-    <MobileBottomNav activeItem={activeNavItem} onNavigate={navigate} />
-    <MobileNavDialog type={navDialog} accountName={accountName} isGuest={isGuest} onClose={() => setNavDialog(null)} onLogin={onLogin} onLogout={onLogout} />
+    </>}
+    {navDialog && <GuestNavDialog type={navDialog} onClose={() => setNavDialog(null)} onLogin={() => { setNavDialog(null); onLogin(); }} onRegister={() => { setNavDialog(null); onRegister(); }} />}
   </>;
 }
 
@@ -532,11 +568,6 @@ function ProductDialog({ onClose, onSave }) {
   return <Dialog title="List a market product" onClose={onClose}><form className="dialog-body" onSubmit={submit}><div className="form-field"><label htmlFor="product-name">Product name</label><input id="product-name" name="name" value={form.name} onChange={update} required placeholder="e.g. Sweet potatoes" /></div><div className="form-row"><div className="form-field"><label htmlFor="product-price">Today's price (₦)</label><input id="product-price" name="price" type="number" min="1" value={form.price} onChange={update} required placeholder="e.g. 2500" /></div><div className="form-field"><label htmlFor="product-stock">Quantity available</label><input id="product-stock" name="stock" type="number" min="0" value={form.stock} onChange={update} placeholder="e.g. 12" /></div></div><div className="form-field"><label htmlFor="product-category">Category</label><select id="product-category" name="category" value={form.category} onChange={update}>{categories.filter(category => category.name !== "All items").map(category => <option key={category.name}>{category.name}</option>)}</select></div><div className="form-field"><label htmlFor="product-unit">Unit or quantity</label><input id="product-unit" name="unit" value={form.unit} onChange={update} placeholder="e.g. per basket" /></div><button className="primary-button wide-button" type="submit">List product</button><p className="fine-print">Buyers see your current price and the time you updated it.</p></form></Dialog>;
 }
 
-function TrackingDialog({ order, onClose, onRefresh }) {
-  const steps = [{ title: "Order received", detail: "Trader is preparing your goods", icon: Check }, { title: "Hub quality check", detail: "Weights and product quality being verified", icon: ScanEye }, { title: "Rider dispatch", detail: "Rider details appear when assigned", icon: Bike }, { title: "Delivered to you", detail: "Rate your order and earn Kasua points", icon: MapPin }];
-  return <Dialog title={`Track order ${order.id}`} onClose={onClose}><div className="dialog-body"><div className="delivery-status tracking-current"><div className="status-icon"><ScanEye size={18} /></div><div><strong>{order.statusLabel}</strong><p>Kasua aggregation hub · Masaka</p></div></div><div className="order-lines tracking-details"><div className="order-line"><span>Next step</span><strong>{order.status >= 2 ? "Delivery confirmation" : "Rider dispatch"}</strong></div><div className="order-line"><span>Delivery area</span><strong>{order.area}</strong></div><div className="order-line"><span>Last update</span><strong>{order.updatedAt}</strong></div></div><div className="tracking-steps">{steps.map((step, index) => { const StepIcon = step.icon; return <div className={`delivery-status tracking-step ${index <= order.status ? "complete" : "pending"}`} key={step.title}><div className="trust-icon">{index < order.status ? <Check size={15} /> : <StepIcon size={15} />}</div><div><strong>{step.title}</strong><p>{step.detail}</p></div></div>; })}</div><button className="primary-button wide-button" type="button" onClick={onRefresh}><RefreshCw size={14} /> Refresh tracking</button><p className="fine-print">Demo status is local to this browser. Live rider location needs the logistics API.</p></div></Dialog>;
-}
-
 function VerificationDialog({ onClose }) {
   const checks = [["Trader identity confirmed", "Contact details reviewed by Kasua"], ["Stall inspected", "Masaka Main Market · Stall 18"], ["Location verified", "Pin and delivery handoff point confirmed"], ["Marketplace account activated", "Product listing and orders are enabled"]];
   return <Dialog title="Trader verification" onClose={onClose}><div className="dialog-body"><div className="delivery-status tracking-current"><div className="status-icon verified"><BadgeCheck size={18} /></div><div><strong>Verified and active</strong><p>Approved for selling on Kasua Masaka</p></div></div><div className="tracking-steps">{checks.map(([title, detail]) => <div className="delivery-status tracking-step" key={title}><div className="trust-icon"><Check size={15} /></div><div><strong>{title}</strong><p>{detail}</p></div></div>)}</div><p className="fine-print">New trader accounts complete identity, stall and location checks before activation.</p></div></Dialog>;
@@ -550,7 +581,18 @@ export default function App() {
   const [account, setAccount] = useState(() => demoMode ? demoAccount : null);
   const cartSaveQueue = useRef(Promise.resolve());
   const [authReady, setAuthReady] = useState(!supabaseConfigured);
-  const [entryPage, setEntryPage] = useState("landing");
+  const [entryPage, setEntryPage] = useState(() => {
+    const path = window.location.pathname.replace(/\/+$/, "") || "/";
+    return path === "/admin" ? demoMode ? "admin" : "staff-login" : "landing";
+  });
+  useEffect(() => {
+    function syncEntryPage() {
+      const path = window.location.pathname.replace(/\/+$/, "") || "/";
+      setEntryPage(path === "/admin" ? demoMode ? "admin" : "staff-login" : "landing");
+    }
+    window.addEventListener("popstate", syncEntryPage);
+    return () => window.removeEventListener("popstate", syncEntryPage);
+  }, []);
   const [products, setProducts] = useDemoState(demoMode ? starterProducts : []);
   const [inventory, setInventory] = useDemoState(starterInventory);
   const [cart, setCart] = useLocalCart(demoMode || account?.role !== "consumer");
@@ -619,7 +661,7 @@ export default function App() {
       try {
         const loadedAccount = await loadAccountProfile(session.user.id);
         const staffRoles = await loadStaffRoles(session.user.id);
-        if (active) setAccount(staffRoles.length ? { ...loadedAccount, role: "staff", staffRoles } : loadedAccount);
+        if (active) setAccount(staffRoles.length ? { ...loadedAccount, role: "staff", staffRoles } : { ...loadedAccount, email: session.user.email });
       } catch (error) {
         if (active) {
           setAccount(null);
@@ -844,7 +886,7 @@ export default function App() {
           await supabase.auth.signOut();
           return { error: `This number is registered as a ${loadedAccount.role}. Choose that role to continue.` };
         }
-        setAccount(loadedAccount);
+        setAccount({ ...loadedAccount, email: data.user.email });
         return null;
       } catch (loginError) {
         await supabase.auth.signOut();
@@ -906,6 +948,7 @@ export default function App() {
     return null;
   }
   function logout() {
+    if (window.location.pathname.replace(/\/+$/, "") === "/admin") window.history.replaceState(null, "", "/");
     setEntryPage("landing");
     if (demoMode) {
       setAccount(null);
@@ -925,10 +968,10 @@ export default function App() {
     if (entryPage === "register") return <RegisterPage onRegister={registerAccount} onLogin={() => setEntryPage("login")} onHome={() => setEntryPage("landing")} demoMode={demoMode} />;
     if (entryPage === "login") return <LoginPage onLogin={loginAccount} onRegister={() => setEntryPage("register")} onHome={() => setEntryPage("landing")} demoMode={demoMode} />;
     if (entryPage === "staff-login" && !demoMode) return <StaffLoginPage onLogin={loginStaffAccount} onHome={() => setEntryPage("landing")} />;
-    if (entryPage === "admin" && demoMode) return <AdminView onExit={() => setEntryPage("landing")} isDemo />;
+    if (entryPage === "admin" && demoMode) return <AdminView onExit={() => { window.history.replaceState(null, "", "/"); setEntryPage("landing"); }} isDemo />;
     return <div className="app-shell" id="top">
-      <Header search={search} setSearch={setSearch} cartCount={cart.reduce((sum, line) => sum + line.quantity, 0)} walletBalance={walletBalance} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={null} onLogout={() => {}} demoMode={demoMode} isGuest onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onAdmin={demoMode ? () => setEntryPage("admin") : supabaseConfigured ? () => setEntryPage("staff-login") : undefined} adminLabel={demoMode ? "Admin preview" : "Staff access"} />
-      <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={() => openCheckout(null)} onClearCart={() => setCart([])} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} supportCases={[]} order={order} accountName="Guest" onLogin={() => setEntryPage("login")} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} isGuest catalogLoading={catalogLoading} catalogError={catalogError} />
+      <Header search={search} setSearch={setSearch} cartCount={cart.reduce((sum, line) => sum + line.quantity, 0)} walletBalance={walletBalance} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={null} onLogout={() => {}} demoMode={demoMode} isGuest onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} />
+      <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={() => openCheckout(null)} onClearCart={() => setCart([])} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} supportCases={[]} order={order} account={null} accountName="Guest" onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={() => {}} onRefreshOrder={refreshOrder} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} isGuest catalogLoading={catalogLoading} catalogError={catalogError} />
       <Toast message={toast} />
     </div>;
   }
@@ -937,10 +980,9 @@ export default function App() {
 
   return <div className="app-shell" id="top">
     <Header search={search} setSearch={setSearch} cartCount={cartCount} walletBalance={walletBalance} onWallet={() => document.getElementById("wallet")?.scrollIntoView({ behavior: "smooth", block: "center" })} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={account} onLogout={logout} demoMode={demoMode} />
-    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} accountName={account.name} onTrack={() => setDialog("tracking")} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogout={logout} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onVerify={() => setDialog("verification")} notify={notify} account={account} demoMode={demoMode} />}</main>
+    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onVerify={() => setDialog("verification")} notify={notify} account={account} demoMode={demoMode} />}</main>
     {dialog === "checkout" && checkoutTotals && <CheckoutDialog totals={checkoutTotals} walletBalance={walletBalance} onClose={() => setDialog(null)} onPlaceOrder={placeOrder} />}
     {dialog === "addProduct" && <ProductDialog onClose={() => setDialog(null)} onSave={saveProduct} />}
-    {dialog === "tracking" && <TrackingDialog order={order} onClose={() => setDialog(null)} onRefresh={refreshOrder} />}
     {dialog === "verification" && <VerificationDialog onClose={() => setDialog(null)} />}
     {dialog === "complaint" && <ComplaintDialog onClose={() => setDialog(null)} onSubmit={submitCustomerComplaint} />}
     <Toast message={toast} />

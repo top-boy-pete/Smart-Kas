@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, BadgeCheck,
   Bell, Boxes, ChartNoAxesCombined, Check, CheckSquare, ChevronRight, CircleDollarSign,
-  ClipboardCheck, ClipboardList, Clock3, FileWarning, LayoutDashboard, MapPin,
+  ClipboardCheck, ClipboardList, Clock3, FileWarning, LayoutDashboard, LogOut, MapPin, Menu,
   MessageSquareWarning, PackageCheck, Search, ShieldAlert, ShieldCheck, Store,
   Truck, Users, X,
 } from "lucide-react";
@@ -272,6 +272,7 @@ function ReportsView({ auditEvents, isDemo }) {
 
 export default function AdminView({ onExit, account, isDemo = false }) {
   const [section, setSection] = useState("Overview");
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia("(min-width: 761px)").matches);
   const [globalSearch, setGlobalSearch] = useState("");
   const [merchantApplications, setMerchantApplications] = useState(() => isDemo ? accounts.filter(account => account.role === "Merchant").map(account => ({
     id: account.id,
@@ -307,6 +308,12 @@ export default function AdminView({ onExit, account, isDemo = false }) {
   const [dataError, setDataError] = useState("");
   const [isLoading, setIsLoading] = useState(!isDemo);
   const [actionBusy, setActionBusy] = useState(false);
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 761px)");
+    const syncSidebar = event => setSidebarOpen(event.matches);
+    desktopQuery.addEventListener("change", syncSidebar);
+    return () => desktopQuery.removeEventListener("change", syncSidebar);
+  }, []);
   const staffRoles = account?.staffRoles || [];
   const roleKey = staffRoles.slice().sort().join(",");
   const selectedApplication = merchantApplications.find(application => application.id === selectedMerchantId);
@@ -439,9 +446,9 @@ export default function AdminView({ onExit, account, isDemo = false }) {
   }[section];
 
   return <div className="admin-app">
-    <header className="admin-topbar"><div className="admin-brand"><img src="/smk.jpeg" alt="Smart Kasua" /><span>Control center</span></div><div className="admin-topbar-right"><span className="admin-live"><i /> {isDemo ? "Admin preview" : "Staff workspace"}</span>{isDemo && <button className="admin-icon-action" type="button" aria-label="Open logistics notifications" onClick={() => setSection("Hub & logistics")}><Bell size={17} /><b>4</b></button>}<button className="admin-exit" type="button" onClick={onExit}><X size={15} /> {isDemo ? "Exit preview" : "Sign out"}</button></div></header>
-    <div className="admin-frame">
-      <aside className="admin-sidebar"><div className="admin-sidebar-heading">OPERATIONS</div><nav aria-label="Administration sections">{allowedNavItems.map(item => { const NavIcon = item.icon; return <button key={item.name} type="button" className={`admin-nav-item ${section === item.name ? "active" : ""}`} onClick={() => setSection(item.name)}><NavIcon size={16} /><span>{item.name}</span>{item.name === "Complaints" && <b>{complaintCases.length}</b>}</button>; })}</nav><div className="admin-staff-card"><div className="admin-staff-avatar">{(account?.name || "KS").slice(0, 1).toUpperCase()}</div><div><strong>{isDemo ? "Kasua staff" : account?.name}</strong><span>{isDemo ? "Read-only preview" : staffRoles.map(formatStatus).join(" · ")}</span></div></div></aside>
+    <header className="admin-topbar"><div className="admin-brand"><button className="admin-menu-toggle" type="button" aria-label="Toggle administration menu" aria-controls="admin-sidebar" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(open => !open)}><Menu size={19} /></button><img src="/smk.jpeg" alt="Smart Kasua" /><span>Control center</span></div><div className="admin-topbar-right">{isDemo && <button className="admin-icon-action" type="button" aria-label="Open logistics notifications" onClick={() => setSection("Hub & logistics")}><Bell size={17} /><b>4</b></button>}</div></header>
+    <div className={`admin-frame ${sidebarOpen ? "" : "sidebar-closed"}`}>
+      <aside className="admin-sidebar" id="admin-sidebar"><div className="admin-sidebar-heading">OPERATIONS</div><nav aria-label="Administration sections">{allowedNavItems.map(item => { const NavIcon = item.icon; return <button key={item.name} type="button" className={`admin-nav-item ${section === item.name ? "active" : ""}`} onClick={() => { setSection(item.name); if (window.matchMedia("(max-width: 760px)").matches) setSidebarOpen(false); }}><NavIcon size={16} /><span>{item.name}</span>{item.name === "Complaints" && <b>{complaintCases.length}</b>}</button>; })}</nav><div className="admin-staff-card"><div className="admin-staff-avatar">{(account?.name || "KS").slice(0, 1).toUpperCase()}</div><div><strong>{isDemo ? "Kasua staff" : account?.name}</strong><span>{isDemo ? "Read-only preview" : staffRoles.map(formatStatus).join(" · ")}</span></div></div><button className="admin-logout" type="button" onClick={onExit}><LogOut size={15} /> {isDemo ? "Exit preview" : "Sign out"}</button></aside>
       <main className="admin-main"><div className="admin-main-top"><div className="admin-breadcrumb"><CurrentIcon size={15} /><span>Control center</span><ChevronRight size={13} /><strong>{section}</strong></div></div>{isDemo ? <div className="admin-demo-notice"><AlertTriangle size={15} /><span><strong>Prototype with sample data.</strong> No live records are read or changed in preview mode.</span></div> : <div className="admin-demo-notice"><ShieldCheck size={15} /><span><strong>Role-scoped staff workspace.</strong> Database policies authorize every read and write; financial requests require a separate approver.</span></div>}{isLoading && <div className="admin-demo-notice" role="status">Loading authorized staff data...</div>}{dataError && <div className="admin-demo-notice" role="alert">{dataError}</div>}{accountNotice && <div className="admin-demo-notice success"><Check size={15} /><span>{accountNotice}</span></div>}{toast && <div className="admin-demo-notice" role="status">{toast}</div>}{sectionContent}</main>
     </div>
   </div>;
