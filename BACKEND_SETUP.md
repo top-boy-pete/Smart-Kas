@@ -28,6 +28,8 @@ supabase db push
 
 The CLI may request the database password in the terminal. Enter it there; do not put it in source files. Inspect the migration plan/output and confirm the destination project reference before applying. Then run Supabase **Security Advisor** and check that every exposed table has the intended RLS policies.
 
+The migration `20261110000100_merchant_onboarding_documents.sql` adds the private `merchant-verification` Storage bucket, evidence and policy-acceptance fields, reviewer-only application evidence, and the resubmission workflow. Apply it only after reviewing the draft merchant policies and the migration's RLS rules. The bucket must remain private; do not add a public read policy or service-role key to the browser.
+
 ### 3. Connect the Vercel Production deployment
 
 In Vercel, open the project **Settings > Environment Variables** and add these for **Production**:
@@ -44,13 +46,16 @@ Use the key field shown by Supabase. If it is a newer publishable key, it is sti
 - Register one test consumer using an email address you control and a unique password.
 - Sign out and sign back in; confirm the profile role remains `consumer`.
 - Try selecting the other role for that same account; confirm the app rejects the mismatch.
-- Register a test merchant; confirm its application is `pending` and it cannot reach merchant tools.
+- Register a test merchant with dummy identity and business files; confirm the application is `pending`, documents are in the private bucket, the policy version and acceptance time are recorded, and the merchant cannot reach selling tools.
+- Assign a test reviewer the `merchant_reviewer` staff role; confirm the reviewer can create short-lived evidence download links, complete the four checks, and record decisions in the audit trail.
+- Request changes and sign in as the applicant; confirm reviewer feedback appears, evidence can be replaced, current policy acceptance is required again, and resubmission resets checks to incomplete.
+- Never use real identity or business documents in demo mode. Demo mode stores only file metadata and does not provide secure document storage or real verification.
 - In Supabase, confirm profile and merchant application rows exist and use Security Advisor/API checks to verify cross-user reads/writes are denied.
 - Confirm checkout, payment, refund, payout, and fulfillment remain unavailable. They must stay disabled until server-side order transactions and provider integrations are implemented.
 
 ### 5. Enable public registration only after launch gates
 
-The URL/key connection does not make commerce production-ready. This app still has no server-side order creation, inventory reservation, payment initiation/webhook verification, settlement, refund workflow, merchant-review console, or production delivery workflow. Before allowing public signup, re-enable email confirmation, configure recovery and abuse controls, review RLS/security, backups, privacy/legal obligations, payment/settlement, and operations. Do not accept real orders/payments until those workflows are implemented and tested.
+The URL/key connection does not make commerce production-ready. This app still has no server-side order creation, inventory reservation, payment initiation/webhook verification, settlement, refund workflow, or production delivery workflow. Merchant policy text is a draft and must be reviewed and finalized before public launch; establish retention/deletion rules for identity documents and train reviewers before accepting real verification records. Before allowing public signup, re-enable email confirmation, configure recovery and abuse controls, review RLS/security, backups, privacy/legal obligations, payment/settlement, and operations. Do not accept real orders/payments until those workflows are implemented and tested.
 
 Never add a Supabase `service_role` key, database password, or payment-provider secret to a `VITE_` variable. The publishable/anon key is intentionally public; Row Level Security is the access boundary.
 
@@ -59,7 +64,8 @@ Never add a Supabase `service_role` key, database password, or payment-provider 
 - A database trigger creates one profile per Supabase Auth user and fixes its account type as `consumer` or `merchant`.
 - Email uniqueness is delegated to Supabase Auth; the database profile role is immutable for each authenticated identity.
 - Merchant contact phone numbers collected during email/password signup are unverified contact details, not authentication factors.
-- Merchant applications can only be submitted as `pending`. There is no client policy to approve, reject, or change verification status.
+- Merchant applications are submitted as `pending` with required identity/business evidence and a versioned policy acceptance. A private Storage bucket limits evidence reads to the owner and assigned merchant reviewers; reviewer actions use protected database functions and are audited. Applications with requested changes can be resubmitted with replacement evidence and renewed policy acceptance.
+- The merchant policy checklist and its version string are release-gated draft terms, not final legal terms. Demo mode stores only test-account data and document metadata; it never uploads or securely retains the selected files.
 - Only verified merchants can expose offers or write offer changes. Product creation/moderation remains a trusted administrative operation.
 - Customers and participating merchants can read only the order records allowed by the migration's RLS policies. Clients cannot insert or mutate orders, payments, payment-webhook events, refunds, shipments, or order events.
 - `price_minor_units` is integer minor currency units (kobo for NGN); convert only at display boundaries and never use floating-point values for financial calculations.

@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight, ArrowUpRight, BadgeCheck, Bike, Check, ChevronDown, ChevronRight,
   CircleHelp, ClipboardList, Coins, Fish, Grid2X2, House, Leaf, MapPin, MapPinCheck, Package,
-  LogIn, LogOut, PackageCheck, Plus, RefreshCw, Route, ScanEye, ShieldCheck, ShoppingBag,
+  LogIn, LogOut, PackageCheck, Plus, RefreshCw, Route, ScanEye, ShieldAlert, ShieldCheck, ShoppingBag,
   ShoppingBasket, Star, Store, Sun, UserPlus, UserRound, Wallet, Wheat, X,
 } from "lucide-react";
 import { categories, demoOrder, formatNaira, readStored, starterInventory, starterProducts } from "./data.js";
@@ -11,6 +11,10 @@ import { loadStaffRoles } from "./lib/admin.js";
 import { loadCustomerCart, mergeGuestCart, saveCustomerCart } from "./lib/cart.js";
 import { loadPublicProducts } from "./lib/catalog.js";
 import { createComplaint, loadCustomerComplaints } from "./lib/complaints.js";
+import {
+  MERCHANT_DOCUMENT_MAX_BYTES, MERCHANT_POLICY_VERSION,
+  removeMerchantDocuments, uploadMerchantDocuments, validateMerchantDocuments,
+} from "./lib/merchant-onboarding.js";
 import { demoMode, loadAccountProfile, supabase, supabaseConfigured } from "./lib/supabase.js";
 
 const paymentMethods = [
@@ -103,7 +107,7 @@ function Header({ search, setSearch, cartCount, walletBalance, onWallet, onCart,
         </button>
         <label className="searchbox"><input value={search} onChange={event => setSearch(event.target.value)} type="search" placeholder="Search tomatoes, rice, traders..." aria-label="Search marketplace" /></label>
         <div className="top-actions">
-          {isGuest ? <><button className="text-button header-auth-action" type="button" onClick={onLogin}><LogIn size={17} /><span>Sign in</span></button><button className="primary-button header-auth-action" type="button" onClick={onRegister}><UserPlus size={17} /><span>Create account</span></button></> : <><button className="wallet-link" type="button" onClick={onWallet} disabled={!demoMode} title={demoMode ? "Kasua wallet demo balance" : "Kasua wallet is not connected"}><Wallet size={16} /><span>{demoMode ? formatNaira(walletBalance) : "Wallet unavailable"}</span></button><button className="icon-button" type="button" aria-label="View basket" onClick={onCart}><ShoppingBasket size={17} /><span className="cart-count">{cartCount}</span></button><button className="avatar" type="button" onClick={onLogout} aria-label={`Sign out ${account.name}`} title={`Sign out ${account.name}`}>{account.name.slice(0, 1).toUpperCase()}</button></>}
+          {isGuest ? <><button className="text-button header-auth-action" type="button" aria-label="Sign in" onClick={onLogin}><LogIn size={17} /><span>Sign in</span></button><button className="primary-button header-auth-action" type="button" aria-label="Create account" onClick={onRegister}><UserPlus size={17} /><span>Create account</span></button></> : <><button className="wallet-link" type="button" onClick={onWallet} disabled={!demoMode} title={demoMode ? "Kasua wallet demo balance" : "Kasua wallet is not connected"}><Wallet size={16} /><span>{demoMode ? formatNaira(walletBalance) : "Wallet unavailable"}</span></button><button className="icon-button" type="button" aria-label="View basket" onClick={onCart}><ShoppingBasket size={17} /><span className="cart-count">{cartCount}</span></button><button className="avatar" type="button" onClick={onLogout} aria-label={`Sign out ${account.name}`} title={`Sign out ${account.name}`}>{account.name.slice(0, 1).toUpperCase()}</button></>}
           {isGuest && <button className="icon-button" type="button" aria-label={`View basket, ${cartCount} items`} onClick={onCart}><ShoppingBasket size={17} /><span className="cart-count">{cartCount}</span></button>}
         </div>
       </div>
@@ -121,7 +125,7 @@ function LandingPage({ onRegister, onLogin }) {
 
 function RegisterPage({ onRegister, onLogin, onHome, demoMode }) {
   const [accountType, setAccountType] = useState("consumer");
-  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "", phone: "", stall: "", market: "", stallNumber: "", landmark: "", confirmsAccuracy: false });
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "", phone: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   function update(event) {
@@ -137,8 +141,7 @@ function RegisterPage({ onRegister, onLogin, onHome, demoMode }) {
       setBusy(false);
       return;
     }
-    const account = { role: accountType, name: form.name.trim(), email: form.email.trim().toLowerCase(), password: form.password, phone: form.phone.trim(), verificationStatus: accountType === "merchant" ? "pending" : "active" };
-    if (accountType === "merchant") account.application = { stall: form.stall.trim(), market: form.market.trim(), stallNumber: form.stallNumber.trim(), landmark: form.landmark.trim() };
+    const account = { role: "consumer", name: form.name.trim(), email: form.email.trim().toLowerCase(), password: form.password, phone: form.phone.trim(), verificationStatus: "active" };
     try {
       const result = await onRegister(account);
       if (result?.error) setError(result.error);
@@ -151,33 +154,139 @@ function RegisterPage({ onRegister, onLogin, onHome, demoMode }) {
   return <div className="auth-page" id="top">
     <AuthHeader onHome={onHome} />
     <main className="account-gate">
-    <section className="account-panel">
+    <section className={`account-panel ${accountType === "merchant" ? "merchant-account-panel" : ""}`}>
       <div className="eyebrow"><ShieldCheck size={14} /> Create your Kasua account</div>
       <h1>{accountType === "merchant" ? "Apply to sell on Kasua" : "Register as a consumer"}</h1>
-      <p className="account-intro">Each account has one role. Merchant access is enabled only after identity, stall and location checks.</p>
+      <p className="account-intro">Each account has one role. Merchant access requires identity, business, stall, location, and policy checks.</p>
       <div className="role-picker" aria-label="Account type"><button type="button" className={accountType === "consumer" ? "active" : ""} disabled={busy} onClick={() => setAccountType("consumer")}><ShoppingBag size={15} /> Consumer</button><button type="button" className={accountType === "merchant" ? "active" : ""} disabled={busy} onClick={() => setAccountType("merchant")}><Store size={15} /> Merchant</button></div>
-      <form className="account-form" onSubmit={submit}>
-        <div className="form-field"><label htmlFor="account-name">{accountType === "merchant" ? "Legal name" : "Your name"}</label><input id="account-name" name="name" autoComplete="name" value={form.name} onChange={update} required disabled={busy} /></div>
+      {accountType === "merchant" ? <MerchantRegistrationWizard onRegister={onRegister} demoMode={demoMode} /> : <form className="account-form" onSubmit={submit}>
+        <div className="form-field"><label htmlFor="account-name">Your name</label><input id="account-name" name="name" autoComplete="name" value={form.name} onChange={update} required disabled={busy} /></div>
         {demoMode ? <div className="form-field"><label htmlFor="account-phone">Mobile number</label><input id="account-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update} required disabled={busy} placeholder="e.g. 080 1234 5678" /></div> : <>
           <div className="form-field"><label htmlFor="account-email">Email address</label><input id="account-email" name="email" type="email" autoComplete="email" value={form.email} onChange={update} required disabled={busy} /></div>
           <div className="form-row"><div className="form-field"><label htmlFor="account-password">Password</label><input id="account-password" name="password" type="password" autoComplete="new-password" minLength="12" value={form.password} onChange={update} required disabled={busy} /></div><div className="form-field"><label htmlFor="account-confirm-password">Confirm password</label><input id="account-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength="12" value={form.confirmPassword} onChange={update} required disabled={busy} /></div></div>
-          {accountType === "merchant" && <div className="form-field"><label htmlFor="merchant-contact-phone">Business contact number (not verified)</label><input id="merchant-contact-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update} required disabled={busy} placeholder="e.g. 080 1234 5678" /></div>}
-        </>}
-        {accountType === "merchant" && <>
-          <div className="form-field"><label htmlFor="merchant-stall">Business or stall name</label><input id="merchant-stall" name="stall" value={form.stall} onChange={update} required disabled={busy} /></div>
-          <div className="form-row"><div className="form-field"><label htmlFor="merchant-market">Market</label><input id="merchant-market" name="market" value={form.market} onChange={update} required disabled={busy} placeholder="e.g. Masaka Main" /></div><div className="form-field"><label htmlFor="merchant-stall-number">Stall number</label><input id="merchant-stall-number" name="stallNumber" value={form.stallNumber} onChange={update} required disabled={busy} /></div></div>
-          <div className="form-field"><label htmlFor="merchant-landmark">Stall location or nearby landmark</label><input id="merchant-landmark" name="landmark" value={form.landmark} onChange={update} required disabled={busy} /></div>
-          <div className="verification-requirements"><strong>Required before selling</strong><span>Identity and business ownership review</span><span>Market association and stall confirmation</span><span>In-person stall inspection and location pin</span><span>Product and pricing policy review</span></div>
-          <label className="consent-row"><input name="confirmsAccuracy" type="checkbox" checked={form.confirmsAccuracy} onChange={update} required disabled={busy} /><span>I confirm these details are accurate and consent to an in-person stall check.</span></label>
         </>}
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Please wait..." : demoMode ? accountType === "merchant" ? "Submit merchant application" : "Create consumer account" : accountType === "merchant" ? "Create merchant account" : "Create consumer account"}</button>
-        <p className="fine-print">{demoMode ? "Demo registration is stored in this browser. Do not use it for real customer or merchant data." : "Use a unique email and a password with at least 12 characters. Merchant access remains pending review."}</p>
-      </form>
+        <button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Please wait..." : "Create consumer account"}</button>
+        <p className="fine-print">{demoMode ? "Demo registration is stored in this browser. Do not use it for real customer data." : "Use a unique email and a password with at least 12 characters."}</p>
+      </form>}
       <p className="auth-switch">Already registered? <button className="text-button" type="button" onClick={onLogin}>Login</button></p>
     </section>
     </main>
   </div>;
+}
+
+function MerchantRegistrationWizard({ onRegister, demoMode }) {
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "", phone: "", stall: "", market: "", stallNumber: "", landmark: "" });
+  const [identityDocumentType, setIdentityDocumentType] = useState("national_id");
+  const [businessEvidenceType, setBusinessEvidenceType] = useState("market_permit");
+  const [identityFile, setIdentityFile] = useState(null);
+  const [businessFile, setBusinessFile] = useState(null);
+  const [confirmsAccuracy, setConfirmsAccuracy] = useState(false);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const formRef = useRef(null);
+  const steps = ["Your details", "Your business", "Verification & policies"];
+
+  function update(event) {
+    setForm(current => ({ ...current, [event.target.name]: event.target.value }));
+  }
+  function moveToStep(nextStep) {
+    if (nextStep > step && !formRef.current?.reportValidity()) return;
+    setError("");
+    setStep(nextStep);
+  }
+  function updateFile(event, setFile) {
+    const file = event.target.files?.[0] || null;
+    setFile(file);
+    setError("");
+    if (file && (file.size > MERCHANT_DOCUMENT_MAX_BYTES || !["application/pdf", "image/jpeg", "image/png"].includes(file.type))) {
+      setError("Choose a PDF, JPG, or PNG file no larger than 10 MB.");
+    }
+  }
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!demoMode && form.password !== form.confirmPassword) {
+      setError("Passwords do not match.");
+      setStep(0);
+      return;
+    }
+    if (!confirmsAccuracy || !policyAccepted) {
+      setError("Confirm your application details and accept the merchant policies to continue.");
+      return;
+    }
+    try {
+      validateMerchantDocuments({ identityFile, businessFile });
+    } catch (validationError) {
+      setError(validationError.message);
+      return;
+    }
+    setBusy(true);
+    try {
+      const newAccount = {
+        role: "merchant",
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        phone: form.phone.trim(),
+        verificationStatus: "pending",
+        application: {
+          stall: form.stall.trim(),
+          market: form.market.trim(),
+          stallNumber: form.stallNumber.trim(),
+          landmark: form.landmark.trim(),
+          identityDocumentType,
+          businessEvidenceType,
+          identityFile,
+          businessFile,
+          acceptedPolicyVersion: MERCHANT_POLICY_VERSION,
+          acceptedPolicyAt: new Date().toISOString(),
+          submittedAt: new Date().toISOString(),
+        },
+      };
+      const result = await onRegister(newAccount);
+      if (result?.error) setError(result.error);
+    } catch (submissionError) {
+      setError(submissionError.message || "Could not submit your merchant application.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <form ref={formRef} className="account-form merchant-onboarding-form" onSubmit={submit}>
+    <div className="onboarding-stepper" aria-label="Merchant application progress">{steps.map((label, index) => <div className={`onboarding-step ${index === step ? "active" : index < step ? "complete" : ""}`} key={label}><span>{index < step ? <Check size={14} /> : index + 1}</span><small>{label}</small></div>)}</div>
+    {step === 0 && <section className="onboarding-step-panel" aria-labelledby="merchant-account-step">
+      <div className="onboarding-section-heading"><span className="eyebrow"><UserRound size={14} /> Step 1 of 3</span><h2 id="merchant-account-step">About you</h2><p>Use your full legal name as it appears on your identity document.</p></div>
+      <div className="form-field"><label htmlFor="merchant-legal-name">Legal name</label><input id="merchant-legal-name" name="name" autoComplete="name" minLength="2" maxLength="120" value={form.name} onChange={update} required disabled={busy} /></div>
+      {demoMode ? <div className="form-field"><label htmlFor="merchant-demo-phone">Mobile number</label><input id="merchant-demo-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update} required disabled={busy} placeholder="e.g. 080 1234 5678" /></div> : <>
+        <div className="form-field"><label htmlFor="merchant-email">Email address</label><input id="merchant-email" name="email" type="email" autoComplete="email" value={form.email} onChange={update} required disabled={busy} /></div>
+        <div className="form-row"><div className="form-field"><label htmlFor="merchant-password">Password</label><input id="merchant-password" name="password" type="password" autoComplete="new-password" minLength="12" value={form.password} onChange={update} required disabled={busy} /></div><div className="form-field"><label htmlFor="merchant-confirm-password">Confirm password</label><input id="merchant-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength="12" value={form.confirmPassword} onChange={update} required disabled={busy} /></div></div>
+        <div className="form-field"><label htmlFor="merchant-contact-phone">Business contact number</label><input id="merchant-contact-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update} required disabled={busy} placeholder="e.g. 080 1234 5678" /><small>Contact detail only; it is not used to sign in or verify your identity.</small></div>
+      </>}
+    </section>}
+    {step === 1 && <section className="onboarding-step-panel" aria-labelledby="merchant-business-step">
+      <div className="onboarding-section-heading"><span className="eyebrow"><Store size={14} /> Step 2 of 3</span><h2 id="merchant-business-step">Your business and stall</h2><p>Tell us where customers and the Kasua team can find your business.</p></div>
+      <div className="form-field"><label htmlFor="merchant-stall">Business or stall name</label><input id="merchant-stall" name="stall" minLength="2" maxLength="120" value={form.stall} onChange={update} required disabled={busy} /></div>
+      <div className="form-row"><div className="form-field"><label htmlFor="merchant-market">Market</label><input id="merchant-market" name="market" minLength="2" maxLength="120" value={form.market} onChange={update} required disabled={busy} placeholder="e.g. Masaka Main" /></div><div className="form-field"><label htmlFor="merchant-stall-number">Stall number</label><input id="merchant-stall-number" name="stallNumber" maxLength="40" value={form.stallNumber} onChange={update} required disabled={busy} /></div></div>
+      <div className="form-field"><label htmlFor="merchant-landmark">Stall location or nearby landmark</label><input id="merchant-landmark" name="landmark" minLength="2" maxLength="240" value={form.landmark} onChange={update} required disabled={busy} placeholder="Describe a nearby landmark" /></div>
+      <div className="onboarding-info"><MapPinCheck size={16} /><span>A Kasua reviewer will confirm your market association and visit the physical stall before enabling selling.</span></div>
+    </section>}
+    {step === 2 && <section className="onboarding-step-panel" aria-labelledby="merchant-verification-step">
+      <div className="onboarding-section-heading"><span className="eyebrow"><ShieldCheck size={14} /> Step 3 of 3</span><h2 id="merchant-verification-step">Verify your identity and business</h2><p>Upload clear, current documents. Only authorized merchant reviewers can view these private files.</p></div>
+      {demoMode && <div className="demo-safety-notice" role="note"><ShieldAlert size={16} /><span>Preview mode does not securely store documents. Use dummy files only—never upload real identity or business records here.</span></div>}
+      <div className="form-field"><label htmlFor="merchant-id-type">Government-issued ID type</label><select id="merchant-id-type" value={identityDocumentType} onChange={event => setIdentityDocumentType(event.target.value)} disabled={busy}><option value="national_id">National identity card / NIN slip</option><option value="passport">International passport</option><option value="drivers_license">Driver's licence</option><option value="voters_card">Voter's card</option></select></div>
+      <div className="form-field"><label htmlFor="merchant-id-file">Identity document</label><input id="merchant-id-file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={event => updateFile(event, setIdentityFile)} required disabled={busy} /><small>{identityFile ? `${identityFile.name} · ${(identityFile.size / 1024 / 1024).toFixed(1)} MB` : "PDF, JPG or PNG · up to 10 MB"}</small></div>
+      <div className="form-field"><label htmlFor="merchant-business-evidence">Business evidence type</label><select id="merchant-business-evidence" value={businessEvidenceType} onChange={event => setBusinessEvidenceType(event.target.value)} disabled={busy}><option value="market_permit">Market or stall permit</option><option value="association_letter">Market association letter</option><option value="stall_photo">Photo of the stall or business</option><option value="business_registration">Business registration certificate</option></select></div>
+      <div className="form-field"><label htmlFor="merchant-business-file">Business verification evidence</label><input id="merchant-business-file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={event => updateFile(event, setBusinessFile)} required disabled={busy} /><small>{businessFile ? `${businessFile.name} · ${(businessFile.size / 1024 / 1024).toFixed(1)} MB` : "PDF, JPG or PNG · up to 10 MB"}</small></div>
+      <MerchantPolicyAcceptance checked={policyAccepted} onChange={setPolicyAccepted} disabled={busy} />
+      <label className="consent-row"><input type="checkbox" checked={confirmsAccuracy} onChange={event => setConfirmsAccuracy(event.target.checked)} required disabled={busy} /><span>I confirm my application details are accurate and consent to an in-person stall and location check.</span></label>
+    </section>}
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <div className="onboarding-actions">{step > 0 && <button className="secondary-button" type="button" onClick={() => moveToStep(step - 1)} disabled={busy}>Back</button>}{step < steps.length - 1 ? <button className="primary-button" type="button" onClick={() => moveToStep(step + 1)} disabled={busy}>Continue <ArrowRight size={15} /></button> : <button className="primary-button" type="submit" disabled={busy}>{busy ? "Submitting securely..." : "Submit for verification"}</button>}</div>
+    <p className="fine-print">{demoMode ? "Demo onboarding stores only your test account details in this session. No real documents are uploaded." : "Documents are stored in a private bucket. Selling stays disabled until a reviewer completes every verification check."}</p>
+  </form>;
 }
 
 function LoginPage({ onLogin, onRegister, onHome, demoMode }) {
@@ -250,16 +359,37 @@ function StaffLoginPage({ onLogin, onHome }) {
 }
 
 function MerchantApplicationStatus({ account, onLogout, onResubmit }) {
-  const [application, setApplication] = useState(account.application || { stall: "", market: "", stallNumber: "", landmark: "" });
+  const [application, setApplication] = useState(account.application || {});
+  const [identityDocumentType, setIdentityDocumentType] = useState(account.application?.identityDocumentType || "national_id");
+  const [businessEvidenceType, setBusinessEvidenceType] = useState(account.application?.businessEvidenceType || "market_permit");
+  const [identityFile, setIdentityFile] = useState(null);
+  const [businessFile, setBusinessFile] = useState(null);
+  const [policyAccepted, setPolicyAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const needsChanges = account.verificationStatus === "needs_changes";
+  const rejected = account.verificationStatus === "rejected";
+  const incomplete = !account.application && !rejected;
+  const canEdit = !demoMode && !rejected && (needsChanges || incomplete);
   async function submit(event) {
     event.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const result = await onResubmit(application);
+      validateMerchantDocuments({ identityFile, businessFile }, false);
+      if ((!account.application?.identityDocumentPath && !identityFile)
+        || (!account.application?.businessDocumentPath && !businessFile)) {
+        throw new Error("Upload the missing identity and business verification documents.");
+      }
+      if (!policyAccepted) throw new Error("Accept the current merchant policies to resubmit.");
+      const result = await onResubmit({
+        ...application,
+        identityDocumentType,
+        businessEvidenceType,
+        identityFile,
+        businessFile,
+        acceptedPolicyVersion: MERCHANT_POLICY_VERSION,
+      });
       if (result?.error) setError(result.error);
     } catch (submissionError) {
       setError(submissionError.message || "Could not resubmit your application.");
@@ -270,24 +400,43 @@ function MerchantApplicationStatus({ account, onLogout, onResubmit }) {
   return <div className="auth-page" id="top">
     <AuthHeader />
     <main className="account-gate">
-    <section className="account-panel application-status">
-      <div className="eyebrow"><ScanEye size={14} /> Merchant application</div>
-      <h1>{needsChanges ? "Changes requested" : "Review in progress"}</h1>
-      <p className="account-intro">Hi {account.name}, {account.application?.stall ? <>your application for <strong>{account.application.stall}</strong> is saved.</> : "your merchant application is not complete yet."} Merchant tools remain locked until Kasua completes these checks.</p>
-      {needsChanges && <><p className="form-error" role="status">{account.reviewFeedback || "Please review and update your merchant application details."}</p><form className="account-form" onSubmit={submit}>
-        <div className="form-field"><label htmlFor="resubmit-store">Store name</label><input id="resubmit-store" value={application.stall} onChange={event => setApplication(current => ({ ...current, stall: event.target.value }))} minLength={2} maxLength={120} required /></div>
-        <div className="form-field"><label htmlFor="resubmit-market">Market</label><input id="resubmit-market" value={application.market} onChange={event => setApplication(current => ({ ...current, market: event.target.value }))} minLength={2} maxLength={120} required /></div>
-        <div className="form-field"><label htmlFor="resubmit-stall">Stall number</label><input id="resubmit-stall" value={application.stallNumber} onChange={event => setApplication(current => ({ ...current, stallNumber: event.target.value }))} maxLength={40} required /></div>
-        <div className="form-field"><label htmlFor="resubmit-landmark">Stall location / landmark</label><input id="resubmit-landmark" value={application.landmark} onChange={event => setApplication(current => ({ ...current, landmark: event.target.value }))} minLength={2} maxLength={240} required /></div>
+    <section className="account-panel application-status merchant-account-panel">
+      <div className="eyebrow"><ScanEye size={14} /> Merchant onboarding dashboard</div>
+      <h1>{needsChanges ? "Action needed" : rejected ? "Application not approved" : incomplete ? "Complete your application" : "Verification in progress"}</h1>
+      <p className="account-intro">Hi {account.name}, {account.application?.stall ? <>your application for <strong>{account.application.stall}</strong> at {account.application.market} is saved.</> : "your merchant application needs to be completed."} Selling tools stay locked until all verification checks are complete.</p>
+      <div className={`onboarding-status-banner ${needsChanges || incomplete ? "attention" : rejected ? "rejected" : "pending"}`} role="status"><span>{needsChanges ? "Changes requested" : rejected ? "Not approved" : incomplete ? "Onboarding incomplete" : "Under review"}</span><small>{account.application?.submittedAt ? `Submitted ${new Date(account.application.submittedAt).toLocaleDateString()}` : incomplete ? "Complete the required details, evidence, and policy acceptance below." : "We will update your status when review is complete."}</small></div>
+      {needsChanges && <div className="onboarding-feedback"><strong>Reviewer feedback</strong><p>{account.reviewFeedback || "Please review and update the application details and evidence."}</p></div>}
+      <div className="onboarding-dashboard-grid">
+        <section className="onboarding-dashboard-card"><div className="onboarding-dashboard-card-title"><UserRound size={16} /><h2>Identity verification</h2></div><strong>{account.application?.identityDocumentType?.replaceAll("_", " ") || "Document needed"}</strong><span>{account.application?.identityDocumentPath ? "Private document received" : demoMode && account.application?.identityFileName ? `${account.application.identityFileName} · preview metadata only` : "No document submitted"}</span></section>
+        <section className="onboarding-dashboard-card"><div className="onboarding-dashboard-card-title"><Store size={16} /><h2>Business verification</h2></div><strong>{account.application?.businessEvidenceType?.replaceAll("_", " ") || "Evidence needed"}</strong><span>{account.application?.businessDocumentPath ? "Private evidence received" : demoMode && account.application?.businessFileName ? `${account.application.businessFileName} · preview metadata only` : "No evidence submitted"}</span></section>
+        <section className="onboarding-dashboard-card"><div className="onboarding-dashboard-card-title"><ShieldCheck size={16} /><h2>Merchant policies</h2></div><strong>{account.application?.acceptedPolicyVersion ? "Accepted" : "Not accepted"}</strong><span>{account.application?.acceptedPolicyAt ? `Accepted ${new Date(account.application.acceptedPolicyAt).toLocaleDateString()}` : "Current policy acceptance required"}</span></section>
+        <section className="onboarding-dashboard-card"><div className="onboarding-dashboard-card-title"><MapPinCheck size={16} /><h2>Stall and location</h2></div><strong>{account.application?.market || "Market needed"}</strong><span>{account.application?.stallNumber ? `Stall ${account.application.stallNumber} · ${account.application.landmark}` : "Location confirmation pending"}</span></section>
+      </div>
+      <div className="verification-requirements status-list"><strong>Review milestones</strong><span>Identity and business evidence reviewed</span><span>Market association and stall details confirmed</span><span>In-person stall and location check completed</span><span>All merchant policies accepted and selling access enabled</span></div>
+      {canEdit && <form className="account-form resubmit-onboarding-form" onSubmit={submit}>
+        <h2>{incomplete ? "Complete your application" : "Update your application"}</h2>
+        <div className="form-field"><label htmlFor="resubmit-store">Business or stall name</label><input id="resubmit-store" value={application.stall || ""} onChange={event => setApplication(current => ({ ...current, stall: event.target.value }))} minLength={2} maxLength={120} required /></div>
+        <div className="form-row"><div className="form-field"><label htmlFor="resubmit-market">Market</label><input id="resubmit-market" value={application.market || ""} onChange={event => setApplication(current => ({ ...current, market: event.target.value }))} minLength={2} maxLength={120} required /></div><div className="form-field"><label htmlFor="resubmit-stall">Stall number</label><input id="resubmit-stall" value={application.stallNumber || ""} onChange={event => setApplication(current => ({ ...current, stallNumber: event.target.value }))} maxLength={40} required /></div></div>
+        <div className="form-field"><label htmlFor="resubmit-landmark">Stall location / landmark</label><input id="resubmit-landmark" value={application.landmark || ""} onChange={event => setApplication(current => ({ ...current, landmark: event.target.value }))} minLength={2} maxLength={240} required /></div>
+        <div className="form-field"><label htmlFor="resubmit-id-type">Government-issued ID type</label><select id="resubmit-id-type" value={identityDocumentType} onChange={event => setIdentityDocumentType(event.target.value)}><option value="national_id">National identity card / NIN slip</option><option value="passport">International passport</option><option value="drivers_license">Driver's licence</option><option value="voters_card">Voter's card</option></select></div>
+        <div className="form-field"><label htmlFor="resubmit-id-file">Replace identity document <small>{account.application?.identityDocumentPath ? "(optional if current document is still valid)" : "(required)"}</small></label><input id="resubmit-id-file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={event => setIdentityFile(event.target.files?.[0] || null)} required={!account.application?.identityDocumentPath} /><small>{identityFile?.name || "PDF, JPG or PNG · up to 10 MB"}</small></div>
+        <div className="form-field"><label htmlFor="resubmit-business-type">Business evidence type</label><select id="resubmit-business-type" value={businessEvidenceType} onChange={event => setBusinessEvidenceType(event.target.value)}><option value="market_permit">Market or stall permit</option><option value="association_letter">Market association letter</option><option value="stall_photo">Photo of the stall or business</option><option value="business_registration">Business registration certificate</option></select></div>
+        <div className="form-field"><label htmlFor="resubmit-business-file">Replace business verification evidence <small>{account.application?.businessDocumentPath ? "(optional if current evidence is valid)" : "(required)"}</small></label><input id="resubmit-business-file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={event => setBusinessFile(event.target.files?.[0] || null)} required={!account.application?.businessDocumentPath} /><small>{businessFile?.name || "PDF, JPG or PNG · up to 10 MB"}</small></div>
+        <MerchantPolicyAcceptance checked={policyAccepted} onChange={setPolicyAccepted} />
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Submitting..." : "Resubmit for review"}</button>
-      </form></>}
-      <div className="verification-requirements status-list"><strong>Verification stages</strong><span>1. Review merchant identity and business ownership</span><span>2. Confirm market, stall and association details</span><span>3. Inspect stall and confirm its location in person</span><span>4. Approve the account and enable selling</span></div>
-      <p className="fine-print">{demoMode ? "This demo records a pending application in this browser. It does not verify identity or approve merchant access." : "Your application is stored securely. Only an authorized merchant reviewer can change its status."}</p>
-      <button className="primary-button wide-button" type="button" onClick={onLogout}>Sign out</button>
+        <button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Submitting securely..." : "Resubmit for review"}</button>
+      </form>}
+      {needsChanges && demoMode && <p className="demo-safety-notice"><ShieldAlert size={16} /> Preview applications cannot be resubmitted. Use dummy data only; document verification requires a connected private Supabase project.</p>}
+      {rejected && <p className="fine-print">If you believe this decision is incorrect, contact Kasua support. You cannot resubmit a rejected application from this screen.</p>}
+      <p className="fine-print">{demoMode ? "Preview mode does not securely store documents or verify identity. Use dummy data only." : "Your evidence is stored in a private bucket. Access is limited to your account and authorized merchant reviewers."}</p>
+      <button className="secondary-button wide-button" type="button" onClick={onLogout}>Sign out</button>
     </section>
     </main>
   </div>;
+}
+
+function MerchantPolicyAcceptance({ checked, onChange, disabled = false }) {
+  return <section className="merchant-policy-card" aria-labelledby="merchant-policy-heading"><div className="eyebrow"><ShieldCheck size={14} /> Draft · version 1</div><h3 id="merchant-policy-heading">Kasua merchant participation policies</h3><ul><li>Keep product descriptions, availability, and prices accurate and up to date.</li><li>List only lawful, safe goods and cooperate with Kasua hub quality checks.</li><li>Fulfil accepted orders on time and communicate clearly about delays or issues.</li><li>Respect customers, protect their information, and follow published return and support processes.</li></ul><p>These concise draft terms must be reviewed and finalized before public launch. Fees, settlement, and detailed legal terms will be presented separately before those services go live.</p><label className="consent-row policy-consent"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} required disabled={disabled} /><span>I have read and agree to the Kasua merchant participation policies, version {MERCHANT_POLICY_VERSION}.</span></label></section>;
 }
 
 function ProductCard({ product, onAdd, disabled = false }) {
@@ -832,6 +981,9 @@ export default function App() {
       });
       if (error) return { error: error.message };
       if (!data.session) return { error: "Supabase email confirmation is still enabled. Turn it off temporarily for this pre-release test, then try registration again." };
+      let uploadedPaths = [];
+      let uploadedDocuments = {};
+      let applicationSaved = false;
       try {
         const profile = await loadAccountProfile(data.user.id);
         if (profile.role !== newAccount.role) {
@@ -847,6 +999,8 @@ export default function App() {
         }
         if (newAccount.role === "merchant") {
           const application = newAccount.application;
+          uploadedDocuments = await uploadMerchantDocuments(data.user.id, application);
+          uploadedPaths = [uploadedDocuments.identityDocumentPath, uploadedDocuments.businessDocumentPath].filter(Boolean);
           const { error: applicationError } = await supabase.from("merchant_profiles").insert({
             user_id: data.user.id,
             store_name: application.stall,
@@ -854,12 +1008,43 @@ export default function App() {
             stall_number: application.stallNumber,
             landmark: application.landmark,
             verification_status: "pending",
+            identity_document_type: application.identityDocumentType,
+            identity_document_path: uploadedDocuments.identityDocumentPath,
+            business_evidence_type: application.businessEvidenceType,
+            business_document_path: uploadedDocuments.businessDocumentPath,
+            accepted_policy_version: application.acceptedPolicyVersion,
           });
-          if (applicationError && applicationError.code !== "23505") throw applicationError;
+          if (applicationError) throw applicationError;
+          applicationSaved = true;
         }
         setAccount(await loadAccountProfile(data.user.id));
         return null;
       } catch (registrationError) {
+        if (applicationSaved) {
+          const { identityFile, businessFile, ...applicationDetails } = newAccount.application;
+          setAccount({
+            id: data.user.id,
+            role: "merchant",
+            name: newAccount.name,
+            email: data.user.email,
+            phone: newAccount.phone,
+            verificationStatus: "pending",
+            application: {
+              ...applicationDetails,
+              identityDocumentPath: uploadedDocuments.identityDocumentPath,
+              businessDocumentPath: uploadedDocuments.businessDocumentPath,
+            },
+          });
+          notify(`Your application was submitted, but status refresh failed: ${registrationError.message}`);
+          return null;
+        }
+        if (uploadedPaths.length) {
+          try {
+            await removeMerchantDocuments(uploadedPaths);
+          } catch (cleanupError) {
+            registrationError = new Error(`${registrationError.message} Temporary document cleanup also failed: ${cleanupError.message}`);
+          }
+        }
         await supabase.auth.signOut();
         return { error: registrationError.message || "Could not save your application." };
       }
@@ -868,7 +1053,20 @@ export default function App() {
     const phoneKey = newAccount.phone.replace(/\D/g, "");
     if (phoneKey.length < 7) return { error: "Enter a valid mobile number." };
     if (demoAccounts[phoneKey]) return { error: "An account already uses this number. Login with its registered role." };
-    const savedAccount = { ...newAccount, phoneKey };
+    let savedApplication;
+    if (newAccount.application) {
+      const { identityFile, businessFile, ...applicationData } = newAccount.application;
+      savedApplication = {
+        ...applicationData,
+        identityFileName: identityFile.name,
+        identityFileSize: identityFile.size,
+        identityFileType: identityFile.type,
+        businessFileName: businessFile.name,
+        businessFileSize: businessFile.size,
+        businessFileType: businessFile.type,
+      };
+    }
+    const savedAccount = { ...newAccount, application: savedApplication, phoneKey };
     setDemoAccounts(current => ({ ...current, [phoneKey]: savedAccount }));
     setDemoAccount(savedAccount);
     setAccount(savedAccount);
@@ -932,19 +1130,91 @@ export default function App() {
   }
   async function resubmitMerchantApplication(application) {
     if (!supabase) return { error: "Merchant application updates require a configured backend." };
-    const { error } = await supabase.rpc("resubmit_merchant_application", {
-      new_store_name: application.stall,
-      new_market_name: application.market,
-      new_stall_number: application.stallNumber,
-      new_landmark: application.landmark,
-    });
-    if (error) return { error: error.message };
-    setAccount(current => ({
-      ...current,
-      application,
-      verificationStatus: "pending",
-      reviewFeedback: "",
-    }));
+    let uploadedPaths = [];
+    let applicationSaved = false;
+    try {
+      const documents = await uploadMerchantDocuments(account.id, application);
+      uploadedPaths = [documents.identityDocumentPath, documents.businessDocumentPath].filter(Boolean);
+      let saveError;
+      if (account.application) {
+        const { error } = await supabase.rpc("resubmit_merchant_application", {
+          new_store_name: application.stall,
+          new_market_name: application.market,
+          new_stall_number: application.stallNumber,
+          new_landmark: application.landmark,
+          new_identity_document_type: application.identityFile ? application.identityDocumentType : null,
+          new_identity_document_path: documents.identityDocumentPath || null,
+          new_business_evidence_type: application.businessFile ? application.businessEvidenceType : null,
+          new_business_document_path: documents.businessDocumentPath || null,
+          new_accepted_policy_version: application.acceptedPolicyVersion,
+        });
+        saveError = error;
+      } else {
+        const { error } = await supabase.from("merchant_profiles").insert({
+          user_id: account.id,
+          store_name: application.stall,
+          market_name: application.market,
+          stall_number: application.stallNumber,
+          landmark: application.landmark,
+          verification_status: "pending",
+          identity_document_type: application.identityDocumentType,
+          identity_document_path: documents.identityDocumentPath,
+          business_evidence_type: application.businessEvidenceType,
+          business_document_path: documents.businessDocumentPath,
+          accepted_policy_version: application.acceptedPolicyVersion,
+        });
+        saveError = error;
+      }
+      if (saveError) {
+        if (uploadedPaths.length) await removeMerchantDocuments(uploadedPaths);
+        return { error: saveError.message };
+      }
+      applicationSaved = true;
+      const { identityFile, businessFile, ...applicationDetails } = application;
+      const refreshedAt = new Date().toISOString();
+      const nextApplication = {
+        ...applicationDetails,
+        identityDocumentPath: documents.identityDocumentPath || account.application?.identityDocumentPath,
+        businessDocumentPath: documents.businessDocumentPath || account.application?.businessDocumentPath,
+        acceptedPolicyAt: refreshedAt,
+        submittedAt: refreshedAt,
+      };
+      setAccount(current => ({
+        ...current,
+        application: nextApplication,
+        verificationStatus: "pending",
+        reviewFeedback: "",
+      }));
+      const oldPaths = [
+        identityFile ? account.application?.identityDocumentPath : null,
+        businessFile ? account.application?.businessDocumentPath : null,
+      ].filter(Boolean);
+      try {
+        setAccount(await loadAccountProfile(account.id));
+      } catch (refreshError) {
+        notify(`Application resubmitted, but account status could not refresh: ${refreshError.message}`);
+      }
+      if (oldPaths.length) {
+        try {
+          await removeMerchantDocuments(oldPaths);
+        } catch (cleanupError) {
+          notify(`Application resubmitted, but replaced document cleanup failed: ${cleanupError.message}`);
+        }
+      }
+    } catch (resubmissionError) {
+      if (!applicationSaved && uploadedPaths.length) {
+        try {
+          await removeMerchantDocuments(uploadedPaths);
+        } catch (cleanupError) {
+          return { error: `${resubmissionError.message} Temporary document cleanup also failed: ${cleanupError.message}` };
+        }
+      }
+      if (applicationSaved) {
+        notify(`Application resubmitted, but post-save cleanup failed: ${resubmissionError.message}`);
+        return null;
+      }
+      return { error: resubmissionError.message || "Could not resubmit your merchant application." };
+    }
     return null;
   }
   function logout() {

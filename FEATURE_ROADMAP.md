@@ -30,9 +30,10 @@ Status key: checked items are present in the current browser demo; unchecked ite
 
 ## Merchant Dashboard and Operations
 
-- [x] Merchant application collects contact and basic stall/market/location details; status remains pending in the local demo.
-- [ ] Secure identity, business, stall, and location verification with reviewer decisions and audit history.
-- [ ] Merchant policy acceptance, recorded with policy version and timestamp.
+- [x] Guided merchant registration collects legal/contact details, business/stall/location details, and required ID and business evidence.
+- [x] Private identity/business document storage, reviewer evidence access, verification checks, resubmission, decisions, and audit history are implemented in Supabase migrations and the app; not active until deployed and configured.
+- [x] Versioned merchant policy acceptance is recorded with its timestamp; the current concise checklist is draft text and must be reviewed/finalized before public launch.
+- [x] Merchant onboarding dashboard shows review status, milestones, submitted evidence metadata, and reviewer feedback; demo mode warns and stores only dummy-file metadata.
 - [x] Product creation form with name, category, unit, price, and stock (local demo only).
 - [ ] Product editing, photo upload, and complete product specifications.
 - [x] Category selection for a new product; no specialization requirement is enforced.

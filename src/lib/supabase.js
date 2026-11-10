@@ -30,7 +30,7 @@ export async function loadAccountProfile(userId) {
 
   const { data: merchant, error: merchantError } = await supabase
     .from("merchant_profiles")
-    .select("store_name, market_name, stall_number, landmark, verification_status, review_feedback")
+    .select("store_name, market_name, stall_number, landmark, verification_status, review_feedback, submitted_at, identity_document_type, identity_document_path, business_evidence_type, business_document_path, accepted_policy_version, accepted_policy_at")
     .eq("user_id", profile.id)
     .maybeSingle();
   if (merchantError) throw merchantError;
@@ -43,6 +43,13 @@ export async function loadAccountProfile(userId) {
       market: merchant.market_name,
       stallNumber: merchant.stall_number,
       landmark: merchant.landmark,
+      submittedAt: merchant.submitted_at,
+      identityDocumentType: merchant.identity_document_type,
+      identityDocumentPath: merchant.identity_document_path,
+      businessEvidenceType: merchant.business_evidence_type,
+      businessDocumentPath: merchant.business_document_path,
+      acceptedPolicyVersion: merchant.accepted_policy_version,
+      acceptedPolicyAt: merchant.accepted_policy_at,
     } : null,
   };
 }

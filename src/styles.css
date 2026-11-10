@@ -357,6 +357,58 @@ main.landing-page { padding: 0; }
 .consent-row input { margin: 2px 0 0; accent-color: var(--green); }
 .account-back { justify-self: center; margin-top: 15px; }
 .application-status .status-list { margin: 18px 0; }
+.merchant-account-panel { width: min(840px, 100%); }
+.merchant-onboarding-form { gap: 14px; }
+.onboarding-stepper { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 8px; }
+.onboarding-step { min-width: 0; display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: center; gap: 8px; color: #89948b; }
+.onboarding-step > span { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #dfe6dc; border-radius: 50%; background: #f7f9f5; font-size: 11px; font-weight: 800; }
+.onboarding-step small { font-size: 10px; font-weight: 700; }
+.onboarding-step.active { color: var(--green-dark); }
+.onboarding-step.active > span, .onboarding-step.complete > span { border-color: var(--green); background: var(--green); color: white; }
+.onboarding-step.complete { color: var(--green); }
+.onboarding-step-panel { display: grid; gap: 12px; }
+.onboarding-section-heading { margin: 0 0 4px; }
+.onboarding-section-heading .eyebrow { margin-bottom: 7px; }
+.onboarding-section-heading h2 { margin: 0 0 5px; font: 800 20px/1.2 "Manrope", sans-serif; }
+.onboarding-section-heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.onboarding-info, .demo-safety-notice { display: flex; align-items: flex-start; gap: 9px; padding: 11px 12px; border: 1px solid #dbe8d9; border-radius: 5px; background: #f4f8f1; color: #526553; font-size: 11px; line-height: 1.5; }
+.onboarding-info svg, .demo-safety-notice svg { flex: 0 0 auto; margin-top: 1px; color: var(--green); }
+.demo-safety-notice { border-color: #f1d9a8; background: #fff9ec; color: #76591e; }
+.demo-safety-notice svg { color: #ad7717; }
+.merchant-policy-card { padding: 15px; border: 1px solid #e4e9dc; border-radius: 6px; background: #f9fbf6; }
+.merchant-policy-card > .eyebrow { margin-bottom: 7px; }
+.merchant-policy-card h3 { margin: 0 0 8px; font: 800 14px/1.35 "Manrope", sans-serif; }
+.merchant-policy-card ul { display: grid; gap: 6px; margin: 0 0 10px; padding-left: 18px; color: #4f5f53; font-size: 11px; line-height: 1.5; }
+.merchant-policy-card > p { margin: 0; color: #717b71; font-size: 10px; line-height: 1.5; }
+.merchant-policy-card .consent-row { margin-top: 12px; }
+.onboarding-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 2px; }
+.onboarding-actions .primary-button, .onboarding-actions .secondary-button { min-width: 122px; }
+.onboarding-actions .secondary-button { min-height: 40px; }
+.onboarding-status-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border: 1px solid #cfe2ca; border-radius: 5px; background: #f3f8f0; color: var(--green-dark); }
+.onboarding-status-banner.attention { border-color: #f1d9a8; background: #fff9ec; color: #795a1b; }
+.onboarding-status-banner.rejected { border-color: #f0c7c1; background: #fff4f1; color: #9c3d31; }
+.onboarding-status-banner > span { font-size: 12px; font-weight: 800; }
+.onboarding-status-banner > small { color: var(--muted); font-size: 10px; }
+.onboarding-feedback { margin-top: 12px; padding: 12px 14px; border-left: 3px solid #e9a23b; background: #fff9ec; }
+.onboarding-feedback strong { font-size: 11px; }
+.onboarding-feedback p { margin: 4px 0 0; color: #76591e; font-size: 11px; line-height: 1.5; white-space: pre-wrap; }
+.onboarding-dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.onboarding-dashboard-card { min-width: 0; display: grid; gap: 5px; padding: 13px; border: 1px solid var(--line); border-radius: 5px; background: white; }
+.onboarding-dashboard-card-title { display: flex; align-items: center; gap: 7px; color: var(--green); }
+.onboarding-dashboard-card-title h2 { margin: 0; color: var(--ink); font-size: 11px; }
+.onboarding-dashboard-card > strong { overflow-wrap: anywhere; color: var(--ink); font-size: 11px; text-transform: capitalize; }
+.onboarding-dashboard-card > span { overflow-wrap: anywhere; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.resubmit-onboarding-form { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.resubmit-onboarding-form > h2 { margin: 0 0 6px; font: 800 17px/1.3 "Manrope", sans-serif; }
+.resubmit-onboarding-form .form-field > small, .merchant-onboarding-form .form-field > small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.resubmit-onboarding-form .form-field label small { color: var(--muted); font-size: 10px; font-weight: 500; }
+.application-status > .secondary-button { margin-top: 6px; }
+.admin-merchant-evidence { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 12px 14px; }
+.admin-merchant-evidence > div { min-width: 0; display: grid; align-content: start; gap: 7px; padding: 12px; border: 1px solid #e5e9e2; border-radius: 5px; background: #fafbf9; }
+.admin-merchant-evidence strong { display: flex; align-items: center; gap: 6px; color: #34443a; font-size: 11px; }
+.admin-merchant-evidence strong svg { color: var(--green); }
+.admin-merchant-evidence span, .admin-merchant-evidence small { overflow-wrap: anywhere; color: #6a756c; font-size: 10px; line-height: 1.45; }
+.admin-merchant-evidence a { display: inline-flex; align-items: center; gap: 4px; width: fit-content; color: #17653e; font-size: 10px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes lift-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 1080px) {
@@ -397,6 +449,16 @@ main.landing-page { padding: 0; }
   .dashboard-overview { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 540px) {
+  .merchant-account-panel { padding: 20px 16px; }
+  .onboarding-step { grid-template-columns: 25px minmax(0, 1fr); gap: 5px; }
+  .onboarding-step > span { width: 25px; height: 25px; }
+  .onboarding-step small { font-size: 9px; line-height: 1.25; }
+  .onboarding-dashboard-grid, .admin-merchant-evidence { grid-template-columns: 1fr; }
+  .onboarding-status-banner { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .onboarding-section-heading h2 { font-size: 18px; }
+  .merchant-policy-card { padding: 12px; }
+  .onboarding-actions { justify-content: stretch; }
+  .onboarding-actions > button { flex: 1; }
   .topbar-inner { min-height: 60px; gap: 6px; padding-block: 4px; }
   .brand-name { font-size: 18px; }
   .brand, .brand-logo { width: 106px; height: 52px; flex-basis: 106px; }
