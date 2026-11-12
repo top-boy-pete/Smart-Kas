@@ -37,10 +37,10 @@ Status key: checked items are implemented in the app; some require backend migra
 - [x] Merchant product creation and editing with category, selling unit, price, stock, descriptions, structured specifications, and product photos.
 - [x] Category selection for a new product; no specialization requirement is enforced.
 - [ ] Merchant-owned server-backed pricing and stock updates require applying the product migration; zero-stock listings will be hidden from the public catalog. Inventory reservation remains unimplemented.
-- [ ] Order notifications, acceptance/decline, and fulfillment status updates.
-- [ ] Collection, hub handoff, rider assignment, and delivery coordination.
+- [x] New paid-order notifications, merchant acceptance, preparation, and hub handoff status updates (requires `20261112000100_merchant_orders_and_payouts.sql`; live order creation is still a separate backend dependency).
+- [x] Delivery area/landmark visibility and merchant hub-handoff notes; [ ] rider assignment and final delivery coordination.
 - [ ] Three-tier merchant ranking with published eligibility rules.
-- [ ] Reliable sales ledger, payout records, reconciliation, and statements.
+- [x] Paid-order sales summary and read-only payout records (payout ledger records must be written by a trusted server workflow); [ ] payout execution, reconciliation, and statements.
 - [ ] Customer questions, merchant support, and dispute workflows.
 - [ ] Product performance analytics and demand insights.
 - [ ] Pricing comparisons and stock recommendations.

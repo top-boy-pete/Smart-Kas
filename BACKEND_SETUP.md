@@ -32,6 +32,8 @@ The migration `20261110000100_merchant_onboarding_documents.sql` adds the privat
 
 The migration `20261110000200_merchant_product_management.sql` adds merchant-owned product listing RPCs and the public `merchant-product-images` bucket. Product photos are public catalog assets; identity evidence remains in its separate private bucket. Verified merchants can create and edit their own descriptions, specifications, category, price, stock, and photo. Use the merchant dashboard only after this migration has been applied; demo changes remain session-only.
 
+The migration `20261112000100_merchant_orders_and_payouts.sql` adds owner-checked RPCs for verified merchants to read paid orders and move them through acceptance, preparation, and hub handoff. New orders are checked every 20 seconds while the merchant dashboard is open. The RPC returns the delivery area/landmark and item snapshots, not the customer's name, phone, or full address. Merchants cannot write order, payment, or shipment tables directly. The migration also adds a payout ledger: only trusted server/service-role workflows can create payout records, while merchants can read their own records. This migration does not create orders, execute payouts, issue refunds, reserve stock, or assign riders.
+
 ### 3. Connect the Vercel Production deployment
 
 In Vercel, open the project **Settings > Environment Variables** and add these for **Production**:
@@ -52,9 +54,10 @@ Use the key field shown by Supabase. If it is a newer publishable key, it is sti
 - Assign a test reviewer the `merchant_reviewer` staff role; confirm the reviewer can create short-lived evidence download links, complete the four checks, and record decisions in the audit trail.
 - Request changes and sign in as the applicant; confirm reviewer feedback appears, evidence can be replaced, current policy acceptance is required again, and resubmission resets checks to incomplete.
 - As a verified merchant, create a listing with a photo, specifications, category, price, and stock; edit each field, set stock to zero, and confirm the listing is no longer available in the public catalog. Check that another merchant cannot read or modify the listing through the merchant RPCs.
+- After applying `20261112000100_merchant_orders_and_payouts.sql`, seed paid test orders through a trusted test/server workflow. As the owning verified merchant, verify new-order notifications, accept an order, start preparation, and record a hub handoff note. Confirm another merchant cannot view or update those orders. Confirm payout records are visible only to their owner and cannot be inserted or edited using the client key.
 - Never use real identity or business documents in demo mode. Demo mode stores only file metadata and does not provide secure document storage or real verification.
 - In Supabase, confirm profile and merchant application rows exist and use Security Advisor/API checks to verify cross-user reads/writes are denied.
-- Confirm checkout, payment, refund, payout, and fulfillment remain unavailable. They must stay disabled until server-side order transactions and provider integrations are implemented.
+- Checkout, payment processing, refunds, payout execution, inventory reservation, rider assignment, and final delivery updates remain unavailable. They must stay disabled until secure server-side order transactions and the relevant payment/logistics integrations are implemented.
 
 ### 5. Enable public registration only after launch gates
 
@@ -70,9 +73,10 @@ Never add a Supabase `service_role` key, database password, or payment-provider 
 - Merchant applications are submitted as `pending` with required identity/business evidence and a versioned policy acceptance. A private Storage bucket limits evidence reads to the owner and assigned merchant reviewers; reviewer actions use protected database functions and are audited. Applications with requested changes can be resubmitted with replacement evidence and renewed policy acceptance.
 - The merchant policy checklist and its version string are release-gated draft terms, not final legal terms. Demo mode stores only test-account data and document metadata; it never uploads or securely retains the selected files.
 - Only verified merchants can expose offers or change their own product listings through the security-definer merchant RPCs. Product moderation remains a trusted administrative operation. Merchant product photos are intentionally public catalog assets; never upload identity or business verification documents to that bucket.
-- Customers and participating merchants can read only the order records allowed by the migration's RLS policies. Clients cannot insert or mutate orders, payments, payment-webhook events, refunds, shipments, or order events.
+- Verified merchants read their own paid orders through a security-definer RPC that reveals only item snapshots and delivery area/landmark. Their status changes are limited to awaiting-merchant → accepted → preparing → at-hub; those changes are audited. Direct client writes to orders, payments, refunds, shipments, and order events remain denied.
+- Merchant payout records are stored in a service-role-only ledger and exposed to their owner through a read RPC. The dashboard does not initiate transfers or treat order sales as completed payouts; settlement creation and reconciliation remain trusted backend responsibilities.
 - `price_minor_units` is integer minor currency units (kobo for NGN); convert only at display boundaries and never use floating-point values for financial calculations.
-- The existing demo cart and checkout are not connected to this schema. Do not accept real orders/payments until server-side checkout, inventory reservation, idempotency, verified provider webhooks, settlement rules, and reconciliation are implemented and tested.
+- The existing demo cart and checkout are not connected to this schema. Demo merchant orders and payouts are examples and are not persisted. Live merchant order tools require the new migration and orders created by a trusted server workflow. Do not accept real orders/payments until server-side checkout, inventory reservation, idempotency, verified provider webhooks, settlement rules, and reconciliation are implemented and tested.
 
 ## Local environment safety
 

@@ -1,11 +1,14 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight, ArrowUpRight, BadgeCheck, Bike, Check, ChevronDown, ChevronRight,
-  CircleHelp, ClipboardList, Coins, Fish, Grid2X2, House, Leaf, MapPin, MapPinCheck, Package,
+  ArrowRight, ArrowUpRight, BadgeCheck, Bell, Bike, Check, ChevronDown, ChevronRight,
+  CircleHelp, ClipboardList, Clock3, Coins, Fish, Grid2X2, House, Leaf, MapPin, MapPinCheck, Package,
   LogIn, LogOut, PackageCheck, Plus, RefreshCw, Route, ScanEye, ShieldAlert, ShieldCheck, ShoppingBag,
-  ShoppingBasket, Star, Store, Sun, UserPlus, UserRound, Wallet, Wheat, X,
+  ShoppingBasket, Star, Store, Sun, Truck, UserPlus, UserRound, Wallet, Wheat, X,
 } from "lucide-react";
-import { categories, demoOrder, formatNaira, readStored, starterInventory, starterProducts } from "./data.js";
+import {
+  categories, demoOrder, formatNaira, readStored, starterInventory, starterMerchantOrders,
+  starterMerchantPayouts, starterProducts,
+} from "./data.js";
 import AdminView from "./AdminView.jsx";
 import { loadStaffRoles } from "./lib/admin.js";
 import { loadCustomerCart, mergeGuestCart, saveCustomerCart } from "./lib/cart.js";
@@ -14,6 +17,9 @@ import { createComplaint, loadCustomerComplaints } from "./lib/complaints.js";
 import {
   loadMerchantProducts, saveMerchantProduct, validateMerchantProductPhoto,
 } from "./lib/merchant-products.js";
+import {
+  loadMerchantOrders, loadMerchantPayouts, updateMerchantOrderStatus,
+} from "./lib/merchant-orders.js";
 import {
   MERCHANT_DOCUMENT_MAX_BYTES, MERCHANT_POLICY_VERSION,
   removeMerchantDocuments, uploadMerchantDocuments, validateMerchantDocuments,
@@ -691,21 +697,152 @@ function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, 
   </>;
 }
 
-function MerchantView({ inventory, onAddProduct, onEditProduct, onVerify, notify, account, demoMode, inventoryLoading, inventoryError }) {
-  const sales = 38400;
+function MerchantView({
+  inventory, onAddProduct, onEditProduct, onVerify, account, demoMode,
+  inventoryLoading, inventoryError, orders, payouts, ordersLoading, payoutsLoading,
+  ordersError, payoutsError, onUpdateOrder, onRefreshOrders,
+}) {
+  const [activeTab, setActiveTab] = useState("overview");
+  const pendingOrders = orders.filter(order => order.status === "awaiting_merchant");
+  const grossSales = orders
+    .filter(order => !["rejected", "cancelled"].includes(order.status))
+    .reduce((sum, order) => sum + order.subtotal, 0);
+  const paidOut = payouts
+    .filter(payout => payout.status === "paid")
+    .reduce((sum, payout) => sum + payout.amount, 0);
+  const inProgressOrders = orders.filter(order => ["accepted", "preparing", "at_hub", "quality_check", "ready_for_dispatch", "in_transit"].includes(order.status)).length;
   const categoriesCount = new Set(inventory.map(item => item.category).filter(Boolean)).size;
+  const tabs = [
+    { id: "overview", label: "Overview", icon: Store },
+    { id: "orders", label: "Orders", icon: PackageCheck, count: pendingOrders.length },
+    { id: "inventory", label: "Inventory", icon: Package },
+    { id: "payouts", label: "Sales & payouts", icon: Coins },
+  ];
+
   return <>
-    <div className="welcome-row merchant-welcome"><div><div className="eyebrow"><Sun size={14} /> Tuesday market, Masaka</div><h1>Good morning, {account.name}</h1></div><span className="account-role"><Store size={14} /> Verified merchant</span></div>
-    <section className="merchant-banner"><div><div className="hero-kicker"><BadgeCheck size={14} /> Trader workspace</div><h2>Your stall, reaching all of Masaka.</h2><p>Manage product details, photos, prices, and stock from one place.</p></div><button className="primary-button" type="button" onClick={onAddProduct}><Plus size={15} /> Add a product</button></section>
-    <div className="merchant-stats">{demoMode && <><StatCard label="Today's sales" value={formatNaira(sales)} detail="Demo activity" /><StatCard label="New orders" value="08" detail="Sample orders" /></>}<StatCard label="Listed products" value={inventoryLoading ? "…" : inventory.length} detail={`${categoriesCount} categories`} />{demoMode && <StatCard label="Trader rating" value={<>{"4.8 "}<span className="star-mark">★</span></>} detail="Sample rating" />}</div>
-    <div className="market-layout merchant-layout"><section className="side-panel inventory-panel"><div className="side-panel-header"><div><h2>Market inventory</h2><span className="subheading">Create and update your products, prices, and available stock</span></div><button className="text-button" type="button" onClick={onAddProduct}>+ Add item</button></div>{demoMode && <p className="merchant-demo-note">Preview only: changes and product photos are kept in this session and are not published or saved permanently.</p>}{inventoryError && <p className="form-error merchant-inventory-error" role="alert">{inventoryError}</p>}<div className="inventory-wrap"><table className="inventory-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Available</th><th>Updated</th><th>Action</th></tr></thead><tbody>{inventoryLoading ? <tr><td colSpan="6">Loading your product listings…</td></tr> : inventory.map(item => <tr key={item.id}><td><div className="inventory-product">{item.imageUrl && <img className="inventory-thumb" src={item.imageUrl} alt="" />}{item.image ? <img className="inventory-thumb" src={`https://images.unsplash.com/${item.image}?auto=format&fit=crop&w=120&q=70`} alt="" /> : null}<div><strong>{item.name}</strong>{(item.description || item.brand || item.size || item.origin || item.specifications) && <details className="inventory-details"><summary>Specifications</summary>{item.description && <span>{item.description}</span>}{item.brand && <span>Brand: {item.brand}</span>}{item.size && <span>Size: {item.size}</span>}{item.origin && <span>Origin: {item.origin}</span>}{item.specifications && <span>{item.specifications}</span>}</details>}</div></div></td><td>{item.category || "—"}</td><td>{formatNaira(item.price)}<small className="inventory-unit">{item.unit}</small></td><td><span className={`stock-pill ${item.stock === 0 ? "empty" : ""}`}>{item.stock > 0 ? `${item.stock} in stock` : "Out of stock"}</span></td><td>{item.checked}</td><td><button className="inventory-edit-button" type="button" onClick={() => onEditProduct(item)}>Edit</button></td></tr>)}{!inventoryLoading && !inventoryError && inventory.length === 0 && <tr><td colSpan="6">No products yet. Add your first product to get started.</td></tr>}</tbody></table></div></section>
-      <aside className="side-column"><section className="verify-panel"><h3><MapPinCheck size={15} /> Verified Kasua trader</h3><p>Your stall and location have been checked. Keep your profile current to build buyer trust.</p><button type="button" onClick={onVerify}>View verification <ArrowRight size={13} /></button></section><section className="side-panel"><div className="side-panel-header"><h2>Orders to prepare</h2><button className="text-button" type="button" onClick={() => notify("All current orders are shown")}>See all</button></div><OrderSummary id="KA-2048" detail="Needs confirmation · 9:42 am" /><OrderSummary id="KA-2042" detail="Hub quality check · 9:10 am" /></section><section className="side-panel merchant-wallet-row"><div className="trust-icon"><Coins size={15} /></div><div><strong>Merchant wallet</strong><span>₦86,200 available · View payouts</span></div><ChevronRight className="chev" size={15} /></section></aside>
+    <div className="welcome-row merchant-welcome">
+      <div><div className="eyebrow"><Sun size={14} /> Trader workspace · Masaka</div><h1>Good morning, {account.name}</h1></div>
+      <span className="account-role"><Store size={14} /> Verified merchant</span>
     </div>
+    <section className="merchant-banner">
+      <div><div className="hero-kicker"><BadgeCheck size={14} /> Trader workspace</div><h2>Your stall, reaching all of Masaka.</h2><p>Manage orders, prepare hub handoffs, and keep track of your sales.</p></div>
+      <button className="primary-button" type="button" onClick={onAddProduct}><Plus size={15} /> Add a product</button>
+    </section>
+    {demoMode && <p className="merchant-demo-note merchant-demo-wide">Preview only: order and payout records are examples. Actions and product changes are not sent to a payment provider or saved to a live marketplace.</p>}
+    <div className="merchant-stats">
+      <StatCard label="Paid order value" value={ordersLoading ? "…" : formatNaira(grossSales)} detail="Gross value of eligible orders" />
+      <StatCard label="Needs your attention" value={ordersLoading ? "…" : pendingOrders.length} detail="Awaiting your acceptance" />
+      <StatCard label="In fulfillment" value={ordersLoading ? "…" : inProgressOrders} detail="Accepted orders in progress" />
+      <StatCard label="Paid out" value={payoutsLoading ? "…" : formatNaira(paidOut)} detail="Recorded completed payouts" />
+      <StatCard label="Listed products" value={inventoryLoading ? "…" : inventory.length} detail={`${categoriesCount} categories`} />
+    </div>
+    <nav className="merchant-tabs" aria-label="Merchant dashboard sections">
+      {tabs.map(({ id, label, icon: Icon, count }) => <button key={id} type="button" className={`merchant-tab ${activeTab === id ? "active" : ""}`} aria-current={activeTab === id ? "page" : undefined} onClick={() => setActiveTab(id)}>
+        <Icon size={16} /><span>{label}</span>{count > 0 && <span className="merchant-tab-count">{count}</span>}
+      </button>)}
+      <button className="merchant-refresh" type="button" onClick={onRefreshOrders} disabled={ordersLoading} aria-label="Refresh orders"><RefreshCw size={15} /> Refresh</button>
+    </nav>
+    {ordersError && <p className="form-error merchant-workspace-error" role="alert">{ordersError}</p>}
+    {activeTab === "overview" && <div className="merchant-dashboard-grid">
+      <section className="side-panel merchant-dashboard-section">
+        <div className="side-panel-header"><div><h2>Orders requiring action</h2><span className="subheading">New paid orders appear here automatically</span></div><button type="button" className="text-button" onClick={() => setActiveTab("orders")}>All orders <ArrowRight size={13} /></button></div>
+        {pendingOrders.length > 0 && <div className="merchant-notification"><Bell size={16} /><span><strong>{pendingOrders.length} new order{pendingOrders.length === 1 ? "" : "s"}</strong> ready for your review.</span></div>}
+        {ordersLoading ? <p className="merchant-empty">Loading your orders…</p> : orders.length ? orders.slice(0, 2).map(order => <MerchantOrderCard key={order.id} order={order} onUpdate={onUpdateOrder} />) : <p className="merchant-empty">No paid orders yet. New orders will appear here when customers check out.</p>}
+      </section>
+      <aside className="merchant-dashboard-aside">
+        <section className="verify-panel"><h3><MapPinCheck size={15} /> Verified Kasua trader</h3><p>Your stall and location have been checked. Keep your profile current to build buyer trust.</p><button type="button" onClick={onVerify}>View verification <ArrowRight size={13} /></button></section>
+        <section className="side-panel merchant-handoff-help"><h2><Truck size={16} /> Hub handoff</h2><p>Once an order is packed, mark it as handed to the market hub. The hub team then coordinates quality checks and delivery.</p></section>
+      </aside>
+    </div>}
+    {activeTab === "orders" && <section className="side-panel merchant-dashboard-section">
+      <div className="side-panel-header"><div><h2>Customer orders</h2><span className="subheading">Accept orders, prepare items, and coordinate handoff to the hub</span></div><span className="page-count">{orders.length} orders</span></div>
+      {ordersLoading && <p className="merchant-empty">Loading your orders…</p>}
+      {!ordersLoading && orders.length === 0 && <p className="merchant-empty">No paid orders yet. New orders will appear here when customers check out.</p>}
+      {orders.map(order => <MerchantOrderCard key={order.id} order={order} onUpdate={onUpdateOrder} />)}
+    </section>}
+    {activeTab === "inventory" && <section className="side-panel inventory-panel">
+      <div className="side-panel-header"><div><h2>Market inventory</h2><span className="subheading">Create and update your products, prices, and available stock</span></div><button className="text-button" type="button" onClick={onAddProduct}>+ Add item</button></div>
+      {inventoryError && <p className="form-error merchant-inventory-error" role="alert">{inventoryError}</p>}
+      <div className="inventory-wrap"><table className="inventory-table"><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Available</th><th>Updated</th><th>Action</th></tr></thead><tbody>
+        {inventoryLoading ? <tr><td colSpan="6">Loading your product listings…</td></tr> : inventory.map(item => <tr key={item.id}><td><div className="inventory-product">{item.imageUrl && <img className="inventory-thumb" src={item.imageUrl} alt="" />}{item.image ? <img className="inventory-thumb" src={`https://images.unsplash.com/${item.image}?auto=format&fit=crop&w=120&q=70`} alt="" /> : null}<div><strong>{item.name}</strong>{(item.description || item.brand || item.size || item.origin || item.specifications) && <details className="inventory-details"><summary>Specifications</summary>{item.description && <span>{item.description}</span>}{item.brand && <span>Brand: {item.brand}</span>}{item.size && <span>Size: {item.size}</span>}{item.origin && <span>Origin: {item.origin}</span>}{item.specifications && <span>{item.specifications}</span>}</details>}</div></div></td><td>{item.category || "—"}</td><td>{formatNaira(item.price)}<small className="inventory-unit">{item.unit}</small></td><td><span className={`stock-pill ${item.stock === 0 ? "empty" : ""}`}>{item.stock > 0 ? `${item.stock} in stock` : "Out of stock"}</span></td><td>{item.checked}</td><td><button className="inventory-edit-button" type="button" onClick={() => onEditProduct(item)}>Edit</button></td></tr>)}
+        {!inventoryLoading && !inventoryError && inventory.length === 0 && <tr><td colSpan="6">No products yet. Add your first product to get started.</td></tr>}
+      </tbody></table></div>
+    </section>}
+    {activeTab === "payouts" && <MerchantPayouts payouts={payouts} loading={payoutsLoading} error={payoutsError} />}
   </>;
 }
 
+function MerchantOrderCard({ order, onUpdate }) {
+  const [handoffNote, setHandoffNote] = useState(order.handoffNote || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const statusLabels = {
+    awaiting_merchant: "Needs acceptance",
+    accepted: "Accepted",
+    preparing: "Preparing",
+    at_hub: "Handed to hub",
+    quality_check: "Hub quality check",
+    ready_for_dispatch: "Ready for dispatch",
+    in_transit: "In transit",
+    delivered: "Delivered",
+    rejected: "Rejected",
+    cancelled: "Cancelled",
+    delayed: "Delayed",
+    failed_delivery: "Delivery issue",
+  };
+  const dateLabel = order.createdAt
+    ? new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(new Date(order.createdAt))
+    : "Date unavailable";
+  async function updateStatus(status) {
+    setBusy(true);
+    setError("");
+    try {
+      await onUpdate(order.id, status, handoffNote);
+    } catch (updateError) {
+      setError(`Could not update this order: ${updateError.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <article className="merchant-order-card">
+    <div className="merchant-order-heading">
+      <div><span className="merchant-order-reference">{order.reference}</span><span className={`merchant-order-status status-${order.status}`}>{statusLabels[order.status] || order.status}</span><small>{dateLabel}</small></div>
+      <strong>{formatNaira(order.subtotal)}</strong>
+    </div>
+    <div className="merchant-order-items">{order.items.map((item, index) => <div key={`${item.name}-${index}`}><span>{item.name} × {item.quantity}</span><strong>{formatNaira(item.price * item.quantity)}</strong></div>)}</div>
+    <div className="merchant-order-destination"><MapPin size={15} /><div><strong>{order.area || "Delivery area not provided"}</strong><span>{order.landmark || "Kasua hub will coordinate the delivery handoff."}</span></div></div>
+    {order.handoffNote && order.status !== "preparing" && <p className="merchant-handoff-note"><strong>Handoff note:</strong> {order.handoffNote}</p>}
+    {order.status === "preparing" && <label className="merchant-handoff-field">Optional note for the hub
+      <textarea maxLength={500} value={handoffNote} onChange={event => setHandoffNote(event.target.value)} placeholder="Packing or collection details" />
+    </label>}
+    <div className="merchant-order-footer">
+      <span><Clock3 size={14} /> {order.deliveryFee > 0 ? `Delivery fee ${formatNaira(order.deliveryFee)}` : "Delivery coordinated by Kasua"}</span>
+      {order.status === "awaiting_merchant" && <div className="merchant-order-action"><button className="primary-button" type="button" disabled={busy} onClick={() => updateStatus("accepted")}>{busy ? "Updating…" : "Accept order"}</button><small>Need to decline? Contact Kasua support to arrange cancellation and any required refund.</small></div>}
+      {order.status === "accepted" && <button className="primary-button" type="button" disabled={busy} onClick={() => updateStatus("preparing")}>{busy ? "Updating…" : "Start preparing"}</button>}
+      {order.status === "preparing" && <button className="primary-button" type="button" disabled={busy} onClick={() => updateStatus("at_hub")}>{busy ? "Updating…" : "Mark handed to hub"}</button>}
+      {!["awaiting_merchant", "accepted", "preparing"].includes(order.status) && <span className="merchant-order-next-step">Kasua hub team coordinates the next delivery step.</span>}
+    </div>
+    {error && <p className="form-error" role="alert">{error}</p>}
+  </article>;
+}
+
+function MerchantPayouts({ payouts, loading, error }) {
+  const paid = payouts.filter(payout => payout.status === "paid").reduce((sum, payout) => sum + payout.amount, 0);
+  const processing = payouts.filter(payout => ["pending", "processing"].includes(payout.status)).reduce((sum, payout) => sum + payout.amount, 0);
+  return <section className="side-panel merchant-payout-panel">
+    <div className="side-panel-header"><div><h2>Sales & payout records</h2><span className="subheading">Settlements recorded for your merchant account</span></div><span className="page-count">{payouts.length} records</span></div>
+    <div className="merchant-payout-summary"><StatCard label="Paid out" value={loading ? "…" : formatNaira(paid)} detail="Completed transfers" /><StatCard label="In progress" value={loading ? "…" : formatNaira(processing)} detail="Pending or processing" /></div>
+    {error && <p className="form-error merchant-workspace-error" role="alert">{error}</p>}
+    <p className="merchant-payout-note">Only recorded settlements are shown. Order sales are not the same as a completed payout.</p>
+    <div className="inventory-wrap"><table className="inventory-table merchant-payout-table"><thead><tr><th>Period</th><th>Amount</th><th>Status</th><th>Reference</th><th>Updated</th></tr></thead><tbody>
+      {loading && <tr><td colSpan="5">Loading payout records…</td></tr>}
+      {!loading && payouts.map(payout => <tr key={payout.id}><td>{payout.periodStart ? `${payout.periodStart}${payout.periodEnd ? ` – ${payout.periodEnd}` : ""}` : "Period not provided"}</td><td>{formatNaira(payout.amount)}</td><td><span className={`merchant-order-status status-${payout.status}`}>{payout.status}</span>{payout.failureReason && <small className="inventory-unit">{payout.failureReason}</small>}</td><td>{payout.reference || "—"}</td><td>{payout.paidAt ? new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(new Date(payout.paidAt)) : new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(new Date(payout.createdAt))}</td></tr>)}
+      {!loading && !error && payouts.length === 0 && <tr><td colSpan="5">No payout records yet. Completed settlements will appear here.</td></tr>}
+    </tbody></table></div>
+  </section>;
+}
+
 function StatCard({ label, value, detail }) { return <div className="stat-card"><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>; }
-function OrderSummary({ id, detail }) { return <div className="trust-row"><div className="trust-icon"><PackageCheck size={15} /></div><div><strong>{id} · 2 items</strong><span>{detail}</span></div><ChevronRight className="chev" size={15} /></div>; }
 
 function CheckoutDialog({ totals, walletBalance, onClose, onPlaceOrder }) {
   const [method, setMethod] = useState("wallet");
@@ -829,6 +966,14 @@ export default function App() {
   const [inventory, setInventory] = useDemoState(demoMode ? starterInventory : []);
   const [inventoryLoading, setInventoryLoading] = useState(!demoMode);
   const [inventoryError, setInventoryError] = useState("");
+  const [merchantOrders, setMerchantOrders] = useDemoState(demoMode ? starterMerchantOrders : []);
+  const [merchantPayouts, setMerchantPayouts] = useDemoState(demoMode ? starterMerchantPayouts : []);
+  const [merchantOrdersOwner, setMerchantOrdersOwner] = useState(null);
+  const [merchantPayoutsOwner, setMerchantPayoutsOwner] = useState(null);
+  const [merchantOrdersLoading, setMerchantOrdersLoading] = useState(!demoMode);
+  const [merchantPayoutsLoading, setMerchantPayoutsLoading] = useState(!demoMode);
+  const [merchantOrdersError, setMerchantOrdersError] = useState("");
+  const [merchantPayoutsError, setMerchantPayoutsError] = useState("");
   const [cart, setCart] = useLocalCart(demoMode || account?.role !== "consumer");
   const [cartReadyUserId, setCartReadyUserId] = useState(null);
   const [walletBalance, setWalletBalance] = useDemoState(12450);
@@ -878,6 +1023,65 @@ export default function App() {
       .catch(error => { if (active) setInventoryError(`Could not load your listings: ${error.message}`); })
       .finally(() => { if (active) setInventoryLoading(false); });
     return () => { active = false; };
+  }, [demoMode, account?.id, account?.role, account?.verificationStatus]);
+
+  useEffect(() => {
+    if (demoMode || account?.role !== "merchant" || account.verificationStatus !== "verified") return undefined;
+    let active = true;
+    let initialized = false;
+    let previousPending = new Set();
+    setMerchantOrders([]);
+    setMerchantPayouts([]);
+    setMerchantOrdersOwner(null);
+    setMerchantPayoutsOwner(null);
+    setMerchantOrdersLoading(true);
+    setMerchantPayoutsLoading(true);
+    setMerchantOrdersError("");
+    setMerchantPayoutsError("");
+
+    async function refreshOrders() {
+      try {
+        const rows = await loadMerchantOrders();
+        if (!active) return;
+        const pendingIds = new Set(rows.filter(row => row.status === "awaiting_merchant").map(row => row.id));
+        if (initialized && [...pendingIds].some(id => !previousPending.has(id))) {
+          setToast("A new paid order is ready for your review.");
+        }
+        initialized = true;
+        previousPending = pendingIds;
+        setMerchantOrders(rows);
+        setMerchantOrdersOwner(account.id);
+        setMerchantOrdersError("");
+      } catch (error) {
+        if (active) setMerchantOrdersError(`Could not load merchant orders: ${error.message}`);
+      } finally {
+        if (active) setMerchantOrdersLoading(false);
+      }
+    }
+
+    async function refreshPayouts() {
+      try {
+        const rows = await loadMerchantPayouts();
+        if (!active) return;
+        setMerchantPayouts(rows);
+        setMerchantPayoutsOwner(account.id);
+        setMerchantPayoutsError("");
+      } catch (error) {
+        if (active) setMerchantPayoutsError(`Could not load payout records: ${error.message}`);
+      } finally {
+        if (active) setMerchantPayoutsLoading(false);
+      }
+    }
+
+    void refreshOrders();
+    void refreshPayouts();
+    const timer = window.setInterval(() => { void refreshOrders(); }, 20000);
+    const payoutTimer = window.setInterval(() => { void refreshPayouts(); }, 60000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.clearInterval(payoutTimer);
+    };
   }, [demoMode, account?.id, account?.role, account?.verificationStatus]);
 
   useEffect(() => {
@@ -1057,6 +1261,37 @@ export default function App() {
     setCart([]);
     setDialog(null);
     notify(`Order placed with ${method === "ussd" ? "USSD" : method === "wallet" ? "Kasua wallet" : method}. Tracking starts at the quality hub.`);
+  }
+  async function refreshMerchantOrderList() {
+    if (demoMode) return;
+    setMerchantOrdersLoading(true);
+    try {
+      setMerchantOrders(await loadMerchantOrders());
+      setMerchantOrdersOwner(account.id);
+      setMerchantOrdersError("");
+    } catch (error) {
+      setMerchantOrdersError(`Could not refresh merchant orders: ${error.message}`);
+    } finally {
+      setMerchantOrdersLoading(false);
+    }
+  }
+  async function changeMerchantOrderStatus(orderId, status, handoffNote) {
+    if (demoMode) {
+      setMerchantOrders(current => current.map(order => order.id === orderId
+        ? { ...order, status, handoffNote: handoffNote || order.handoffNote, shipmentStatus: status === "at_hub" ? "at_hub" : order.shipmentStatus }
+        : order));
+      notify("Demo order status updated for this session.");
+      return;
+    }
+    await updateMerchantOrderStatus(orderId, status, handoffNote);
+    notify("Order status updated.");
+    try {
+      setMerchantOrders(await loadMerchantOrders());
+      setMerchantOrdersOwner(account.id);
+      setMerchantOrdersError("");
+    } catch (error) {
+      setMerchantOrdersError(`Order was updated, but the latest order list could not be loaded: ${error.message}`);
+    }
   }
   async function saveProduct(form, existingProduct) {
     if (!demoMode) {
@@ -1402,7 +1637,7 @@ export default function App() {
 
   return <div className="app-shell" id="top">
     <Header search={search} setSearch={setSearch} cartCount={cartCount} walletBalance={walletBalance} onWallet={() => document.getElementById("wallet")?.scrollIntoView({ behavior: "smooth", block: "center" })} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={account} onLogout={logout} demoMode={demoMode} />
-    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }} onVerify={() => setDialog("verification")} notify={notify} account={account} demoMode={demoMode} inventoryLoading={inventoryLoading} inventoryError={inventoryError} />}</main>
+    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }} onVerify={() => setDialog("verification")} account={account} demoMode={demoMode} inventoryLoading={inventoryLoading} inventoryError={inventoryError} orders={demoMode || merchantOrdersOwner === account.id ? merchantOrders : []} payouts={demoMode || merchantPayoutsOwner === account.id ? merchantPayouts : []} ordersLoading={merchantOrdersLoading} payoutsLoading={merchantPayoutsLoading} ordersError={merchantOrdersError} payoutsError={merchantPayoutsError} onUpdateOrder={changeMerchantOrderStatus} onRefreshOrders={refreshMerchantOrderList} />}</main>
     {dialog === "checkout" && checkoutTotals && <CheckoutDialog totals={checkoutTotals} walletBalance={walletBalance} onClose={() => setDialog(null)} onPlaceOrder={placeOrder} />}
     {dialog === "addProduct" && <ProductDialog key={editingProduct?.id || "new-product"} onClose={() => { setDialog(null); setEditingProduct(null); }} onSave={saveProduct} initialProduct={editingProduct} demoMode={demoMode} />}
     {dialog === "verification" && <VerificationDialog onClose={() => setDialog(null)} />}

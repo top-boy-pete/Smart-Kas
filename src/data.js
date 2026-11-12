@@ -34,6 +34,72 @@ export const demoOrder = {
   items: [{ name: "Local rice", quantity: 1, price: 7200 }],
 };
 
+export const starterMerchantOrders = [
+  {
+    id: "merchant-order-3071",
+    reference: "KA-3071",
+    status: "awaiting_merchant",
+    subtotal: 12600,
+    deliveryFee: 500,
+    createdAt: "2026-11-12T08:42:00.000Z",
+    area: "Masaka North",
+    landmark: "Near the community clinic",
+    items: [
+      { name: "Local rice, 5kg", quantity: 1, price: 7200 },
+      { name: "Red onions, 1kg", quantity: 2, price: 2700 },
+    ],
+  },
+  {
+    id: "merchant-order-3064",
+    reference: "KA-3064",
+    status: "preparing",
+    subtotal: 8500,
+    deliveryFee: 500,
+    createdAt: "2026-11-12T07:55:00.000Z",
+    acceptedAt: "2026-11-12T08:02:00.000Z",
+    area: "Masaka Central",
+    landmark: "Main road",
+    items: [{ name: "Tomatoes, basket", quantity: 1, price: 8500 }],
+    handoffNote: "Packed in a sturdy basket",
+  },
+  {
+    id: "merchant-order-3049",
+    reference: "KA-3049",
+    status: "at_hub",
+    subtotal: 3500,
+    deliveryFee: 500,
+    createdAt: "2026-11-11T13:20:00.000Z",
+    acceptedAt: "2026-11-11T13:25:00.000Z",
+    area: "Masaka South",
+    landmark: "By the water point",
+    items: [{ name: "Smoked catfish", quantity: 1, price: 3500 }],
+    shipmentStatus: "at_hub",
+    handoffNote: "Order handed to the market hub",
+  },
+];
+
+export const starterMerchantPayouts = [
+  {
+    id: "demo-payout-1",
+    amount: 23800,
+    status: "paid",
+    reference: "DEMO-PAYOUT-014",
+    periodStart: "2026-11-01",
+    periodEnd: "2026-11-07",
+    createdAt: "2026-11-08T10:00:00.000Z",
+    paidAt: "2026-11-08T10:12:00.000Z",
+  },
+  {
+    id: "demo-payout-2",
+    amount: 14600,
+    status: "processing",
+    reference: "DEMO-PAYOUT-021",
+    periodStart: "2026-11-08",
+    periodEnd: "2026-11-11",
+    createdAt: "2026-11-12T05:30:00.000Z",
+  },
+];
+
 export function formatNaira(value) {
   return new Intl.NumberFormat("en-NG", {
     style: "currency",
