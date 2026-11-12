@@ -1,6 +1,9 @@
 import { supabase } from "./supabase.js";
+import {
+  deleteMerchantCloudinaryAsset, getMerchantCloudinaryImageUrl,
+  isMerchantCloudinaryPublicId, uploadMerchantCloudinaryAsset,
+} from "./cloudinary.js";
 
-export const MERCHANT_PRODUCT_IMAGE_BUCKET = "merchant-product-images";
 export const MERCHANT_PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 const categorySlugs = {
@@ -29,9 +32,11 @@ function normalizeCategory(name) {
 function parseMerchantProduct(row) {
   const attributes = row.attributes || {};
   const variant = row.variant_attributes || {};
-  const imageUrl = row.image_path
-    ? requireSupabase().storage.from(MERCHANT_PRODUCT_IMAGE_BUCKET).getPublicUrl(row.image_path).data.publicUrl
-    : null;
+  const imageUrl = isMerchantCloudinaryPublicId(row.image_path)
+    ? getMerchantCloudinaryImageUrl(row.image_path)
+    : (row.image_path
+      ? requireSupabase().storage.from("merchant-product-images").getPublicUrl(row.image_path).data.publicUrl
+      : null);
   return {
     id: row.offer_id,
     productId: row.product_id,
@@ -65,17 +70,13 @@ export async function loadMerchantProducts() {
 export async function saveMerchantProduct(userId, form, existingProduct) {
   const client = requireSupabase();
   const photo = form.photo;
-  let uploadedPath = null;
+  let uploadedAsset = null;
   let saved = false;
   let cleanupWarning = "";
   try {
     if (photo) {
       validateMerchantProductPhoto(photo);
-      uploadedPath = `${userId}/${crypto.randomUUID()}.${photo.type === "image/jpeg" ? "jpg" : photo.type === "image/png" ? "png" : "webp"}`;
-      const { error } = await client.storage
-        .from(MERCHANT_PRODUCT_IMAGE_BUCKET)
-        .upload(uploadedPath, photo, { cacheControl: "3600", contentType: photo.type, upsert: false });
-      if (error) throw error;
+      uploadedAsset = await uploadMerchantCloudinaryAsset(photo, "product");
     }
 
     const categorySlug = categorySlugs[form.category];
@@ -91,25 +92,30 @@ export async function saveMerchantProduct(userId, form, existingProduct) {
       product_specifications: form.specifications.trim(),
       product_condition: form.condition,
       product_unit: form.unit.trim(),
-      product_image_path: uploadedPath || existingProduct?.imagePath || null,
+      product_image_path: uploadedAsset?.publicId || existingProduct?.imagePath || null,
       offer_price_minor_units: Math.round(Number(form.price) * 100),
       offer_available_quantity: Number(form.stock),
     });
     if (error) throw error;
     saved = true;
 
-    if (uploadedPath && existingProduct?.imagePath) {
-      const { error: cleanupError } = await client.storage
-        .from(MERCHANT_PRODUCT_IMAGE_BUCKET)
-        .remove([existingProduct.imagePath]);
-      if (cleanupError) cleanupWarning = `Product saved, but old photo cleanup failed: ${cleanupError.message}`;
+    if (uploadedAsset && existingProduct?.imagePath) {
+      try {
+        if (isMerchantCloudinaryPublicId(existingProduct.imagePath)) {
+          await deleteMerchantCloudinaryAsset(existingProduct.imagePath, "product");
+        } else {
+          const { error: cleanupError } = await client.storage.from("merchant-product-images").remove([existingProduct.imagePath]);
+          if (cleanupError) throw cleanupError;
+        }
+      } catch (cleanupError) {
+        cleanupWarning = `Product saved, but old photo cleanup failed: ${cleanupError.message}`;
+      }
     }
   } catch (saveError) {
-    if (uploadedPath && !saved) {
-      const { error: cleanupError } = await client.storage
-        .from(MERCHANT_PRODUCT_IMAGE_BUCKET)
-        .remove([uploadedPath]);
-      if (cleanupError) {
+    if (uploadedAsset && !saved) {
+      try {
+        await deleteMerchantCloudinaryAsset(uploadedAsset.publicId, "product");
+      } catch (cleanupError) {
         throw new Error(`${saveError.message} Temporary photo cleanup also failed: ${cleanupError.message}`);
       }
     }

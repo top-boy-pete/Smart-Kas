@@ -1,6 +1,6 @@
 import { starterProducts } from "../data.js";
 import { supabase } from "./supabase.js";
-import { MERCHANT_PRODUCT_IMAGE_BUCKET } from "./merchant-products.js";
+import { getMerchantCloudinaryImageUrl, isMerchantCloudinaryPublicId } from "./cloudinary.js";
 
 function normalizeCategory(name) {
   const value = (name || "").toLowerCase();
@@ -65,9 +65,11 @@ export async function loadPublicProducts() {
       seller: offer.merchant_profiles.store_name,
       rating: null,
       note: offer.authenticity_notes || "Verified trader",
-      imageUrl: attributes.image_path
-        ? supabase.storage.from(MERCHANT_PRODUCT_IMAGE_BUCKET).getPublicUrl(attributes.image_path).data.publicUrl
-        : null,
+      imageUrl: isMerchantCloudinaryPublicId(attributes.image_path)
+        ? getMerchantCloudinaryImageUrl(attributes.image_path)
+        : (attributes.image_path
+          ? supabase.storage.from("merchant-product-images").getPublicUrl(attributes.image_path).data.publicUrl
+          : null),
       image: fallbackImage(category),
       stock: offer.available_quantity,
     }));

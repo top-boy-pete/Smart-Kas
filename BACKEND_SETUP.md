@@ -36,6 +36,8 @@ The migration `20261112000100_merchant_orders_and_payouts.sql` adds owner-checke
 
 The migration `20261112000200_merchant_insights_and_questions.sql` adds customer product questions with merchant replies, customer-side message history, and verified-merchant insights RPCs. Product performance and demand are calculated from paid order lines over the prior 7/30 days. Stock guidance is a simple 14-day pace estimate, not a forecast. Price ranges compare active verified offers with the same category, selling unit, and size; they may still differ in quality or origin. Merchant questions reveal no customer contact details. All records and RPC results are account-scoped.
 
+The migration `20261112000300_cloudinary_merchant_media.sql` adds secure Cloudinary asset references, owner/reviewer authorization RPCs, and updates document resubmission and reviewer listing. New product photos use Cloudinary's public `upload` delivery; identity/business documents use the `authenticated` delivery type. Existing Supabase Storage media remains readable during transition. Do not make verification documents public or place the Cloudinary API secret in browser/Vercel variables.
+
 ### 3. Connect the Vercel Production deployment
 
 In Vercel, open the project **Settings > Environment Variables** and add these for **Production**:
@@ -43,17 +45,40 @@ In Vercel, open the project **Settings > Environment Variables** and add these f
 ```text
 VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_STAGING_PUBLISHABLE_OR_ANON_KEY
+VITE_CLOUDINARY_CLOUD_NAME=YOUR_CLOUDINARY_CLOUD_NAME
 ```
 
 Use the key field shown by Supabase. If it is a newer publishable key, it is still the client key consumed by `VITE_SUPABASE_ANON_KEY`. Never add a service-role key to Vercel frontend variables. Save and redeploy Production; environment changes apply to new deployments, not existing ones.
 
-### 4. Verify the hosted integration
+### 4. Configure Cloudinary and deploy the signing function
+
+1. In Cloudinary, create two **signed** upload presets (leave the “unsigned” option disabled). Configure `kasua-merchant-product-signed` for image uploads with JPG/PNG/WebP formats and a 5 MB maximum. Configure `kasua-merchant-documents-signed` for authenticated image/PDF uploads with PDF/JPG/PNG formats and a 10 MB maximum. Do not enable public delivery for the verification preset.
+2. In the Supabase Dashboard, set these under **Edge Functions > Secrets**. Use the actual Cloudinary account values there; never put the API secret in `.env`, Vercel, or any `VITE_` variable.
+
+   ```text
+   CLOUDINARY_CLOUD_NAME=YOUR_CLOUDINARY_CLOUD_NAME
+   CLOUDINARY_API_KEY=YOUR_CLOUDINARY_API_KEY
+   CLOUDINARY_API_SECRET=YOUR_CLOUDINARY_API_SECRET
+   CLOUDINARY_PRODUCT_UPLOAD_PRESET=kasua-merchant-product-signed
+   CLOUDINARY_DOCUMENT_UPLOAD_PRESET=kasua-merchant-documents-signed
+   CLOUDINARY_ALLOWED_ORIGINS=http://localhost:5173,https://YOUR_VERCEL_PRODUCTION_DOMAIN
+   ```
+
+3. Keep Supabase JWT verification enabled for the `merchant-cloudinary` function. Deploy it after applying the Cloudinary migration:
+
+   ```sh
+   supabase functions deploy merchant-cloudinary --project-ref YOUR_PROJECT_REF
+   ```
+
+   The `.env.example` file contains placeholders only. Cloudinary credentials are issued by Cloudinary; the project cannot create functioning dummy credentials. Leave placeholders until you create an account, and use test assets rather than real identity documents during setup.
+
+### 5. Verify the hosted integration
 
 - Register one test consumer using an email address you control and a unique password.
 - Sign out and sign back in; confirm the profile role remains `consumer`.
 - Try selecting the other role for that same account; confirm the app rejects the mismatch.
-- Register a test merchant with dummy identity and business files; confirm the application is `pending`, documents are in the private bucket, the policy version and acceptance time are recorded, and the merchant cannot reach selling tools.
-- Assign a test reviewer the `merchant_reviewer` staff role; confirm the reviewer can create short-lived evidence download links, complete the four checks, and record decisions in the audit trail.
+- Register a test merchant with dummy identity and business files; confirm the application is `pending`, documents are uploaded as authenticated Cloudinary assets, their asset IDs and the policy version/acceptance time are recorded, and the merchant cannot reach selling tools.
+- Assign a test reviewer the `merchant_reviewer` staff role; confirm the reviewer can download evidence using short-lived links, complete the four checks, and record decisions in the audit trail. Confirm an unrelated authenticated user cannot obtain a download URL.
 - Request changes and sign in as the applicant; confirm reviewer feedback appears, evidence can be replaced, current policy acceptance is required again, and resubmission resets checks to incomplete.
 - As a verified merchant, create a listing with a photo, specifications, category, price, and stock; edit each field, set stock to zero, and confirm the listing is no longer available in the public catalog. Check that another merchant cannot read or modify the listing through the merchant RPCs.
 - After applying `20261112000100_merchant_orders_and_payouts.sql`, seed paid test orders through a trusted test/server workflow. As the owning verified merchant, verify new-order notifications, accept an order, start preparation, and record a hub handoff note. Confirm another merchant cannot view or update those orders. Confirm payout records are visible only to their owner and cannot be inserted or edited using the client key.
@@ -73,9 +98,9 @@ Never add a Supabase `service_role` key, database password, or payment-provider 
 - A database trigger creates one profile per Supabase Auth user and fixes its account type as `consumer` or `merchant`.
 - Email uniqueness is delegated to Supabase Auth; the database profile role is immutable for each authenticated identity.
 - Merchant contact phone numbers collected during email/password signup are unverified contact details, not authentication factors.
-- Merchant applications are submitted as `pending` with required identity/business evidence and a versioned policy acceptance. A private Storage bucket limits evidence reads to the owner and assigned merchant reviewers; reviewer actions use protected database functions and are audited. Applications with requested changes can be resubmitted with replacement evidence and renewed policy acceptance.
+- Merchant applications are submitted as `pending` with required identity/business evidence and a versioned policy acceptance. New evidence is uploaded to authenticated Cloudinary assets; the Edge Function issues short-lived download URLs only after an owner/reviewer authorization RPC. Existing private Supabase documents remain readable during transition. Reviewer actions use protected database functions and are audited. Applications with requested changes can be resubmitted with replacement evidence and renewed policy acceptance.
 - The merchant policy checklist and its version string are release-gated draft terms, not final legal terms. Demo mode stores only test-account data and document metadata; it never uploads or securely retains the selected files.
-- Only verified merchants can expose offers or change their own product listings through the security-definer merchant RPCs. Product moderation remains a trusted administrative operation. Merchant product photos are intentionally public catalog assets; never upload identity or business verification documents to that bucket.
+- Only verified merchants can expose offers or change their own product listings through the security-definer merchant RPCs. Product moderation remains a trusted administrative operation. New merchant product photos are public Cloudinary catalog assets; never upload identity or business verification documents using the public product preset.
 - Verified merchants read their own paid orders through a security-definer RPC that reveals only item snapshots and delivery area/landmark. Their status changes are limited to awaiting-merchant → accepted → preparing → at-hub; those changes are audited. Direct client writes to orders, payments, refunds, shipments, and order events remain denied.
 - Merchant payout records are stored in a service-role-only ledger and exposed to their owner through a read RPC. The dashboard does not initiate transfers or treat order sales as completed payouts; settlement creation and reconciliation remain trusted backend responsibilities.
 - Customer product questions are created only by authenticated customer accounts for active verified-merchant offers; merchants can read/reply only to their own questions, and customers can read only their own question history. Merchant insights reveal only their listing metrics plus aggregate prices for verified active offers matching category, selling unit, and size; no competitor identity or customer identity is exposed.

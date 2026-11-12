@@ -1,4 +1,8 @@
 import { supabase } from "./supabase.js";
+import {
+  deleteMerchantCloudinaryAsset, isMerchantCloudinaryPublicId,
+  uploadMerchantCloudinaryAsset,
+} from "./cloudinary.js";
 
 export const MERCHANT_POLICY_VERSION = "merchant-draft-2026-11-10-v1";
 export const MERCHANT_DOCUMENT_BUCKET = "merchant-verification";
@@ -21,33 +25,31 @@ export function validateMerchantDocuments({ identityFile, businessFile }, requir
   if (required || businessFile) validateDocument(businessFile, "business verification");
 }
 
-export async function uploadMerchantDocuments(userId, documents) {
+export async function uploadMerchantDocuments(documents) {
   if (!supabase) throw new Error("Secure merchant document storage is not configured.");
   validateMerchantDocuments(documents, false);
 
   const uploadedPaths = [];
   const result = {};
   const uploads = [
-    ["identityFile", "identity", "identityDocumentPath"],
-    ["businessFile", "business", "businessDocumentPath"],
+    ["identityFile", "identity", "identityDocumentPath", "identityDocumentAssetId"],
+    ["businessFile", "business", "businessDocumentPath", "businessDocumentAssetId"],
   ];
 
   try {
-    for (const [fileKey, folder, resultKey] of uploads) {
+    for (const [fileKey, folder, resultKey, assetIdKey] of uploads) {
       const file = documents[fileKey];
       if (!file) continue;
-      const path = `${userId}/${folder}/${crypto.randomUUID()}.${documentExtensions[file.type]}`;
-      const { error } = await supabase.storage
-        .from(MERCHANT_DOCUMENT_BUCKET)
-        .upload(path, file, { cacheControl: "0", contentType: file.type, upsert: false });
-      if (error) throw error;
-      uploadedPaths.push(path);
-      result[resultKey] = path;
+      const asset = await uploadMerchantCloudinaryAsset(file, folder);
+      uploadedPaths.push(asset.publicId);
+      result[resultKey] = asset.publicId;
+      result[assetIdKey] = asset.assetId;
     }
   } catch (uploadError) {
     if (uploadedPaths.length) {
-      const { error: cleanupError } = await supabase.storage.from(MERCHANT_DOCUMENT_BUCKET).remove(uploadedPaths);
-      if (cleanupError) {
+      try {
+        await removeMerchantDocuments(uploadedPaths);
+      } catch (cleanupError) {
         throw new Error(`${uploadError.message} Temporary document cleanup also failed: ${cleanupError.message}`);
       }
     }
@@ -61,6 +63,14 @@ export async function removeMerchantDocuments(paths) {
   const existingPaths = paths.filter(Boolean);
   if (!existingPaths.length) return;
   if (!supabase) throw new Error("Secure merchant document storage is not configured.");
-  const { error } = await supabase.storage.from(MERCHANT_DOCUMENT_BUCKET).remove(existingPaths);
-  if (error) throw error;
+  for (const path of existingPaths) {
+    if (isMerchantCloudinaryPublicId(path)) {
+      const kind = path.includes("/identity/") ? "identity" : path.includes("/business/") ? "business" : null;
+      if (!kind) throw new Error("Invalid Cloudinary verification document identifier.");
+      await deleteMerchantCloudinaryAsset(path, kind);
+    } else {
+      const { error } = await supabase.storage.from(MERCHANT_DOCUMENT_BUCKET).remove([path]);
+      if (error) throw error;
+    }
+  }
 }

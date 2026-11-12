@@ -287,7 +287,7 @@ function MerchantRegistrationWizard({ onRegister, demoMode }) {
       <div className="onboarding-info"><MapPinCheck size={16} /><span>A Kasua reviewer will confirm your market association and visit the physical stall before enabling selling.</span></div>
     </section>}
     {step === 2 && <section className="onboarding-step-panel" aria-labelledby="merchant-verification-step">
-      <div className="onboarding-section-heading"><span className="eyebrow"><ShieldCheck size={14} /> Step 3 of 3</span><h2 id="merchant-verification-step">Verify your identity and business</h2><p>Upload clear, current documents. Only authorized merchant reviewers can view these private files.</p></div>
+      <div className="onboarding-section-heading"><span className="eyebrow"><ShieldCheck size={14} /> Step 3 of 3</span><h2 id="merchant-verification-step">Verify your identity and business</h2><p>Upload clear, current documents. Files are stored as authenticated Cloudinary assets and only authorized reviewers can access them.</p></div>
       {demoMode && <div className="demo-safety-notice" role="note"><ShieldAlert size={16} /><span>Preview mode does not securely store documents. Use dummy files only—never upload real identity or business records here.</span></div>}
       <div className="form-field"><label htmlFor="merchant-id-type">Government-issued ID type</label><select id="merchant-id-type" value={identityDocumentType} onChange={event => setIdentityDocumentType(event.target.value)} disabled={busy}><option value="national_id">National identity card / NIN slip</option><option value="passport">International passport</option><option value="drivers_license">Driver's licence</option><option value="voters_card">Voter's card</option></select></div>
       <div className="form-field"><label htmlFor="merchant-id-file">Identity document</label><input id="merchant-id-file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={event => updateFile(event, setIdentityFile)} required disabled={busy} /><small>{identityFile ? `${identityFile.name} · ${(identityFile.size / 1024 / 1024).toFixed(1)} MB` : "PDF, JPG or PNG · up to 10 MB"}</small></div>
@@ -1670,7 +1670,7 @@ export default function App() {
         }
         if (newAccount.role === "merchant") {
           const application = newAccount.application;
-          uploadedDocuments = await uploadMerchantDocuments(data.user.id, application);
+          uploadedDocuments = await uploadMerchantDocuments(application);
           uploadedPaths = [uploadedDocuments.identityDocumentPath, uploadedDocuments.businessDocumentPath].filter(Boolean);
           const { error: applicationError } = await supabase.from("merchant_profiles").insert({
             user_id: data.user.id,
@@ -1681,8 +1681,10 @@ export default function App() {
             verification_status: "pending",
             identity_document_type: application.identityDocumentType,
             identity_document_path: uploadedDocuments.identityDocumentPath,
+            identity_document_asset_id: uploadedDocuments.identityDocumentAssetId,
             business_evidence_type: application.businessEvidenceType,
             business_document_path: uploadedDocuments.businessDocumentPath,
+            business_document_asset_id: uploadedDocuments.businessDocumentAssetId,
             accepted_policy_version: application.acceptedPolicyVersion,
           });
           if (applicationError) throw applicationError;
@@ -1703,7 +1705,9 @@ export default function App() {
             application: {
               ...applicationDetails,
               identityDocumentPath: uploadedDocuments.identityDocumentPath,
+              identityDocumentAssetId: uploadedDocuments.identityDocumentAssetId,
               businessDocumentPath: uploadedDocuments.businessDocumentPath,
+              businessDocumentAssetId: uploadedDocuments.businessDocumentAssetId,
             },
           });
           notify(`Your application was submitted, but status refresh failed: ${registrationError.message}`);
@@ -1804,7 +1808,7 @@ export default function App() {
     let uploadedPaths = [];
     let applicationSaved = false;
     try {
-      const documents = await uploadMerchantDocuments(account.id, application);
+      const documents = await uploadMerchantDocuments(application);
       uploadedPaths = [documents.identityDocumentPath, documents.businessDocumentPath].filter(Boolean);
       let saveError;
       if (account.application) {
@@ -1815,8 +1819,10 @@ export default function App() {
           new_landmark: application.landmark,
           new_identity_document_type: application.identityFile ? application.identityDocumentType : null,
           new_identity_document_path: documents.identityDocumentPath || null,
+          new_identity_document_asset_id: documents.identityDocumentAssetId || null,
           new_business_evidence_type: application.businessFile ? application.businessEvidenceType : null,
           new_business_document_path: documents.businessDocumentPath || null,
+          new_business_document_asset_id: documents.businessDocumentAssetId || null,
           new_accepted_policy_version: application.acceptedPolicyVersion,
         });
         saveError = error;
@@ -1830,8 +1836,10 @@ export default function App() {
           verification_status: "pending",
           identity_document_type: application.identityDocumentType,
           identity_document_path: documents.identityDocumentPath,
+          identity_document_asset_id: documents.identityDocumentAssetId,
           business_evidence_type: application.businessEvidenceType,
           business_document_path: documents.businessDocumentPath,
+          business_document_asset_id: documents.businessDocumentAssetId,
           accepted_policy_version: application.acceptedPolicyVersion,
         });
         saveError = error;
@@ -1846,7 +1854,9 @@ export default function App() {
       const nextApplication = {
         ...applicationDetails,
         identityDocumentPath: documents.identityDocumentPath || account.application?.identityDocumentPath,
+        identityDocumentAssetId: documents.identityDocumentAssetId || account.application?.identityDocumentAssetId,
         businessDocumentPath: documents.businessDocumentPath || account.application?.businessDocumentPath,
+        businessDocumentAssetId: documents.businessDocumentAssetId || account.application?.businessDocumentAssetId,
         acceptedPolicyAt: refreshedAt,
         submittedAt: refreshedAt,
       };
