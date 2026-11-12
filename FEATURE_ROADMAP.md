@@ -41,10 +41,10 @@ Status key: checked items are implemented in the app; some require backend migra
 - [x] Delivery area/landmark visibility and merchant hub-handoff notes; [ ] rider assignment and final delivery coordination.
 - [ ] Three-tier merchant ranking with published eligibility rules.
 - [x] Paid-order sales summary and read-only payout records (payout ledger records must be written by a trusted server workflow); [ ] payout execution, reconciliation, and statements.
-- [ ] Customer questions, merchant support, and dispute workflows.
-- [ ] Product performance analytics and demand insights.
-- [ ] Pricing comparisons and stock recommendations.
-- [ ] Merchant performance reports.
+- [x] Customer product questions, account-scoped merchant replies, and customer message history (requires `20261112000200_merchant_insights_and_questions.sql`); [ ] support cases and disputes for payment/delivery issues.
+- [x] Product performance analytics and 7/30-day paid-order demand insights.
+- [x] Indicative active-offer price comparisons by category, unit, and size plus transparent 14-day pace-based stock recommendations.
+- [x] Merchant performance reports based on recorded paid order lines (requires applying the insights migration).
 - [ ] Confirmed general-merchant and specialist-merchant participation through explicit policy and account tests.
 
 ## Catalog and Offers

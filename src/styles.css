@@ -348,6 +348,60 @@ h1 { margin: 4px 0 0; font: 700 26px/1.2 "Manrope", sans-serif; letter-spacing: 
 .merchant-payout-note { margin: 0 0 12px; }
 .merchant-payout-table { min-width: 650px; }
 .merchant-empty { padding: 10px 0; }
+.product-question-button { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; padding: 0; border: 0; background: transparent; color: var(--green-dark); font-size: 10px; font-weight: 750; cursor: pointer; }
+.product-question-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.merchant-question-dialog > p:first-child { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.merchant-question-dialog textarea { min-height: 100px; resize: vertical; }
+.merchant-inbox-panel { min-width: 0; }
+.merchant-question-card { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: white; }
+.merchant-question-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.merchant-question-heading > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.merchant-question-heading strong { font: 700 12px "Manrope", sans-serif; }
+.merchant-question-heading span:not(.merchant-order-status) { color: var(--muted); font-size: 10px; }
+.merchant-question-text { margin: 12px 0; padding: 10px; border-radius: 4px; background: #f6f8f4; color: #46534a; font-size: 12px; line-height: 1.5; }
+.merchant-question-answer { padding: 0 10px; }
+.merchant-question-answer strong { color: var(--green-dark); font-size: 10px; }
+.merchant-question-answer p { margin: 4px 0 10px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.merchant-reply-form { display: grid; justify-items: start; gap: 7px; padding-top: 10px; border-top: 1px solid #eef1eb; }
+.merchant-reply-form label { color: #536057; font-size: 10px; font-weight: 750; }
+.merchant-reply-form textarea { width: 100%; min-height: 66px; padding: 9px; border: 1px solid var(--line); border-radius: 4px; resize: vertical; font: inherit; font-size: 11px; }
+.merchant-reply-form .primary-button { min-height: 34px; padding-inline: 12px; font-size: 10px; }
+.merchant-support-note { margin: 16px 0 0; padding: 10px; border-radius: 4px; background: #f7f8f5; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.merchant-insights-page { display: grid; gap: 14px; }
+.merchant-report-panel, .merchant-demand-panel, .merchant-pricing-panel { min-width: 0; }
+.merchant-report-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
+.merchant-report-metrics .stat-card { padding: 13px; }
+.merchant-report-metrics .stat-card strong { font-size: 19px; }
+.merchant-top-products { padding-top: 13px; border-top: 1px solid #eef1eb; }
+.merchant-top-products h3 { margin: 0 0 10px; font: 700 13px "Manrope", sans-serif; }
+.merchant-performance-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; }
+.merchant-performance-rank { width: 24px; height: 24px; flex: 0 0 24px; display: grid; place-items: center; border-radius: 50%; background: var(--mint); color: var(--green-dark); font-size: 10px; font-weight: 800; }
+.merchant-performance-product { min-width: 0; flex: 1; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
+.merchant-performance-product strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.merchant-performance-product > span { color: var(--muted); font-size: 10px; }
+.merchant-performance-track { height: 5px; grid-column: 1 / -1; overflow: hidden; border-radius: 5px; background: #edf1e9; }
+.merchant-performance-track span { height: 100%; display: block; border-radius: inherit; background: var(--green); }
+.merchant-insight-caveat { margin: 0 0 12px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.merchant-insight-product { padding: 12px 0; border-top: 1px solid #eef1eb; }
+.merchant-insight-product-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.merchant-insight-product-heading > div { min-width: 0; display: grid; gap: 3px; }
+.merchant-insight-product-heading strong { font-size: 11px; }
+.merchant-insight-product-heading > div > span { color: var(--muted); font-size: 9px; }
+.merchant-insight-facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; }
+.merchant-insight-facts span { color: var(--muted); font-size: 10px; }
+.merchant-insight-facts strong { margin-left: 3px; color: var(--ink); }
+.merchant-stock-advice { margin: 9px 0 0; color: var(--green-dark); font-size: 10px; line-height: 1.45; }
+.merchant-stock-advice.needs-stock { color: #84571b; }
+.merchant-pricing-panel .inventory-table { min-width: 680px; }
+.merchant-pricing-panel .inventory-table td:first-child { white-space: normal; }
+.customer-merchant-messages { display: grid; gap: 10px; }
+.customer-merchant-question { padding: 11px 0; border-top: 1px solid #eef1eb; }
+.customer-merchant-question > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.customer-merchant-question > div > strong { font-size: 11px; }
+.customer-merchant-question > p { margin: 8px 0; color: #536057; font-size: 11px; line-height: 1.5; }
+.customer-merchant-question > small { color: var(--muted); font-size: 10px; }
+.customer-merchant-question .customer-merchant-answer { padding: 9px; border-radius: 4px; background: #f3f7f1; }
+.customer-merchant-answer strong { color: var(--green-dark); }
 .modal-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; overflow-y: auto; place-items: center; padding: 20px; background: rgba(18, 35, 24, .48); backdrop-filter: blur(3px); animation: fade-in .16s ease-out; }
 .modal { width: min(450px, 100%); max-height: min(90vh, 820px); overflow-y: auto; border: 1px solid var(--line); border-radius: 9px; background: white; box-shadow: 0 24px 80px rgba(17, 35, 23, .22); animation: lift-in .2s ease-out; }
 .modal-wide { width: min(530px, 100%); }
@@ -619,6 +673,11 @@ main.landing-page { padding: 0; }
   .merchant-order-heading > strong { font-size: 13px; }
   .merchant-order-action { width: 100%; justify-items: start; }
   .merchant-order-action small { text-align: left; }
+  .merchant-question-card { padding: 11px; }
+  .merchant-report-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .merchant-report-metrics .stat-card { padding: 10px; }
+  .merchant-report-metrics .stat-card strong { font-size: 16px; }
+  .merchant-insight-facts { gap: 7px 12px; }
   .merchant-payout-summary { gap: 7px; }
   .inventory-wrap { overflow-x: auto; }
   .inventory-table { min-width: 760px; }

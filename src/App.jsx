@@ -2,12 +2,12 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight, ArrowUpRight, BadgeCheck, Bell, Bike, Check, ChevronDown, ChevronRight,
   CircleHelp, ClipboardList, Clock3, Coins, Fish, Grid2X2, House, Leaf, MapPin, MapPinCheck, Package,
-  LogIn, LogOut, PackageCheck, Plus, RefreshCw, Route, ScanEye, ShieldAlert, ShieldCheck, ShoppingBag,
-  ShoppingBasket, Star, Store, Sun, Truck, UserPlus, UserRound, Wallet, Wheat, X,
+  LogIn, LogOut, MessageCircle, PackageCheck, Plus, RefreshCw, Route, ScanEye, ShieldAlert, ShieldCheck, ShoppingBag,
+  ShoppingBasket, Star, Store, Sun, TrendingUp, Truck, UserPlus, UserRound, Wallet, Wheat, X,
 } from "lucide-react";
 import {
   categories, demoOrder, formatNaira, readStored, starterInventory, starterMerchantOrders,
-  starterMerchantPayouts, starterProducts,
+  starterMerchantInsights, starterMerchantPayouts, starterMerchantQuestions, starterProducts,
 } from "./data.js";
 import AdminView from "./AdminView.jsx";
 import { loadStaffRoles } from "./lib/admin.js";
@@ -20,6 +20,10 @@ import {
 import {
   loadMerchantOrders, loadMerchantPayouts, updateMerchantOrderStatus,
 } from "./lib/merchant-orders.js";
+import {
+  answerMerchantQuestion, askMerchantQuestion, loadCustomerMerchantQuestions,
+  loadMerchantInsights, loadMerchantQuestions,
+} from "./lib/merchant-insights.js";
 import {
   MERCHANT_DOCUMENT_MAX_BYTES, MERCHANT_POLICY_VERSION,
   removeMerchantDocuments, uploadMerchantDocuments, validateMerchantDocuments,
@@ -448,13 +452,14 @@ function MerchantPolicyAcceptance({ checked, onChange, disabled = false }) {
   return <section className="merchant-policy-card" aria-labelledby="merchant-policy-heading"><div className="eyebrow"><ShieldCheck size={14} /> Draft · version 1</div><h3 id="merchant-policy-heading">Kasua merchant participation policies</h3><ul><li>Keep product descriptions, availability, and prices accurate and up to date.</li><li>List only lawful, safe goods and cooperate with Kasua hub quality checks.</li><li>Fulfil accepted orders on time and communicate clearly about delays or issues.</li><li>Respect customers, protect their information, and follow published return and support processes.</li></ul><p>These concise draft terms must be reviewed and finalized before public launch. Fees, settlement, and detailed legal terms will be presented separately before those services go live.</p><label className="consent-row policy-consent"><input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} required disabled={disabled} /><span>I have read and agree to the Kasua merchant participation policies, version {MERCHANT_POLICY_VERSION}.</span></label></section>;
 }
 
-function ProductCard({ product, onAdd, disabled = false }) {
+function ProductCard({ product, onAdd, onAskQuestion, disabled = false }) {
   const image = product.imageUrl || `https://images.unsplash.com/${product.image}?auto=format&fit=crop&w=600&q=80`;
   return (
     <article className="product-card">
       <div className="product-image"><img src={image} alt={product.name} loading="lazy" /><span className="price-note"><BadgeCheck size={11} />{product.note}</span></div>
       <div className="product-info"><h3>{product.name}</h3><div className="seller-line"><BadgeCheck size={12} />{product.seller}{product.rating && <span>· ★ {product.rating}</span>}</div>{(product.description || product.brand || product.size || product.origin || product.specifications) && <details className="market-product-details"><summary>Product details</summary>{product.description && <span>{product.description}</span>}{product.brand && <span>Brand: {product.brand}</span>}{product.size && <span>Size: {product.size}</span>}{product.origin && <span>Origin: {product.origin}</span>}{product.specifications && <span>{product.specifications}</span>}</details>}
         <div className="product-bottom"><div className="product-price">{formatNaira(product.price)}<span className="product-unit">{product.unit}</span></div><button className="icon-button add-button" type="button" aria-label={`Add ${product.name} to basket`} disabled={disabled || product.stock === 0} onClick={() => onAdd(product)}><Plus size={17} /></button></div>
+        {onAskQuestion && <button className="product-question-button" type="button" onClick={() => onAskQuestion(product)}><MessageCircle size={13} /> Ask seller</button>}
       </div>
     </article>
   );
@@ -632,11 +637,12 @@ function CustomerOrdersPage({ accountName, isGuest, purchaseHistory, order, onRe
   </section>;
 }
 
-function CustomerProfilePage({ account, isGuest, priorities, onTogglePriority, onLogin, onRegister, onLogout }) {
+function CustomerProfilePage({ account, isGuest, priorities, onTogglePriority, onLogin, onRegister, onLogout, questions, questionsLoading, questionsError }) {
   return <section className="customer-page" aria-labelledby="profile-page-title">
     <div className="customer-page-heading"><div><span className="eyebrow"><UserRound size={14} /> Account</span><h1 id="profile-page-title">Your profile</h1><p>Manage your Kasua account and shopping preferences.</p></div></div>
     {isGuest ? <section className="customer-page-card customer-page-empty"><div className="profile-summary"><span className="profile-avatar">G</span><div><h2>Browsing as a guest</h2><p>Sign in to keep your account and preferences together.</p></div></div><div className="customer-page-actions"><button className="primary-button" type="button" onClick={onLogin}>Sign in</button><button className="secondary-button" type="button" onClick={onRegister}>Create account</button></div></section>
       : <><section className="customer-page-card customer-profile-card"><div className="profile-summary"><span className="profile-avatar">{account.name.slice(0, 1).toUpperCase()}</span><div><h2>{account.name}</h2><p>Consumer account</p></div><span className="verified-profile"><ShieldCheck size={14} /> Active</span></div><div className="profile-details">{account.email && <div><span>Email address</span><strong>{account.email}</strong></div>}{account.phone && <div><span>Phone number</span><strong>{account.phone}</strong></div>}<div><span>Account type</span><strong>Consumer</strong></div></div></section>
+        <section className="customer-page-card customer-merchant-messages"><div className="dashboard-card-heading"><div><span className="eyebrow"><MessageCircle size={13} /> Merchant messages</span><h2>Product questions</h2></div></div>{questionsError && <p className="form-error" role="alert">{questionsError}</p>}{questionsLoading && <p className="merchant-empty">Loading your questions…</p>}{!questionsLoading && !questions.length && <p className="merchant-empty">Questions you send to merchants and their replies will appear here.</p>}{questions.map(question => <article className="customer-merchant-question" key={question.id}><div><strong>{question.productName}</strong><span className={`merchant-order-status status-${question.status}`}>{question.status}</span></div><p>{question.question}</p>{question.answer ? <p className="customer-merchant-answer"><strong>Merchant reply:</strong> {question.answer}</p> : <small>Waiting for the merchant to reply.</small>}</article>)}</section>
         <section className="customer-page-card profile-preferences"><div className="dashboard-card-heading"><div><span className="eyebrow">Personalize your market</span><h2>Shopping priorities</h2></div><Star size={18} /></div><p>Choose what matters most when we show market picks.</p><div className="priority-options">{customerPriorityOptions.map(({ id, label, description, Icon }) => {
           const selected = priorities.includes(id);
           return <button key={id} type="button" className={`priority-option ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => onTogglePriority(id)}><span className="priority-icon"><Icon size={18} /></span><span className="priority-copy"><strong>{label}</strong><small>{description}</small></span><span className="priority-check" aria-hidden="true">{selected ? <Check size={15} /> : null}</span></button>;
@@ -646,7 +652,7 @@ function CustomerProfilePage({ account, isGuest, priorities, onTogglePriority, o
   </section>;
 }
 
-function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, walletBalance, notify, search, activeCategory, setActiveCategory, sort, setSort, onVerify, onComplaint, onLogin, onRegister, onLogout, supportCases, order, account, accountName, demoMode, isGuest = false, catalogLoading = false, catalogError = "", cartLoading = false, purchaseHistory, priorities, onTogglePriority, onRefreshOrder }) {
+function ShopView({ products, cart, onAdd, onAskQuestion, onQuantity, onCheckout, onClearCart, walletBalance, notify, search, activeCategory, setActiveCategory, sort, setSort, onVerify, onComplaint, onLogin, onRegister, onLogout, supportCases, order, account, accountName, demoMode, isGuest = false, catalogLoading = false, catalogError = "", cartLoading = false, purchaseHistory, priorities, onTogglePriority, onRefreshOrder, merchantQuestions = [], merchantQuestionsLoading = false, merchantQuestionsError = "" }) {
   const [activeNavItem, setActiveNavItem] = useState("market");
   const [navDialog, setNavDialog] = useState(null);
   const deferredSearch = useDeferredValue(search);
@@ -676,7 +682,7 @@ function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, 
     <MobileBottomNav activeItem={activeNavItem} onNavigate={navigate} />
     {activeNavItem === "dashboard" ? <CustomerDashboard accountName={accountName} isGuest={isGuest} products={products} purchaseHistory={purchaseHistory} priorities={priorities} onTogglePriority={onTogglePriority} onAdd={onAdd} onMarket={() => navigate("market")} catalogLoading={catalogLoading} /> : <>
     {activeNavItem === "orders" && <CustomerOrdersPage accountName={accountName} isGuest={isGuest} purchaseHistory={purchaseHistory} order={order} onRefreshOrder={onRefreshOrder} onLogin={onLogin} onRegister={onRegister} demoMode={demoMode} />}
-    {activeNavItem === "profile" && <CustomerProfilePage account={account} isGuest={isGuest} priorities={priorities} onTogglePriority={onTogglePriority} onLogin={onLogin} onRegister={onRegister} onLogout={onLogout} />}
+    {activeNavItem === "profile" && <CustomerProfilePage account={account} isGuest={isGuest} priorities={priorities} onTogglePriority={onTogglePriority} onLogin={onLogin} onRegister={onRegister} onLogout={onLogout} questions={merchantQuestions} questionsLoading={merchantQuestionsLoading} questionsError={merchantQuestionsError} />}
     {activeNavItem === "market" && <>
     {!demoMode && <div className="backend-banner" role="status"><ShieldCheck size={16} /><span><strong>{isGuest ? "Browse without an account." : "Your account is connected."}</strong> Products and merchant offers are loaded from Supabase. {isGuest ? "Your basket stays on this device. Sign in to continue; checkout and payment are unavailable." : "Checkout and payment are not connected yet."}</span></div>}
     <div className="welcome-row"><div><div className="eyebrow"><Sun size={14} /> Tuesday market, Masaka</div><h1>{isGuest ? "Browse today's market" : `Good morning, ${accountName}`}</h1></div><span className="account-role"><ShoppingBag size={14} /> {isGuest ? "Guest browsing" : "Consumer account"}</span></div>
@@ -685,7 +691,7 @@ function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, 
         <section className="category-section"><div className="section-heading"><h2>Shop by category</h2><button className="text-button" type="button" onClick={() => setActiveCategory("All items")}>See all</button></div><CategoryPicker activeCategory={activeCategory} onChange={setActiveCategory} /></section>
         <section id="products"><div className="section-heading products-heading"><div><h2>Fresh from Masaka</h2><p>Fair market prices, updated by verified traders today</p></div><select className="sort-select" value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort products"><option value="featured">Today's picks</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option></select></div>
           {catalogError && <div className="empty-state" role="alert">{catalogError}</div>}
-          {catalogLoading ? <div className="empty-state" role="status">Loading products from Supabase...</div> : <div className="product-grid">{visibleProducts.map(product => { const quantityInCart = cart.find(line => line.productId === product.id)?.quantity || 0; const maxQuantity = Math.min(99, Number.isInteger(product.stock) ? product.stock : 99); return <ProductCard key={product.id} product={product} onAdd={onAdd} disabled={cartLoading || quantityInCart >= maxQuantity || (!quantityInCart && cart.length >= 100)} />; })}{visibleProducts.length === 0 && !catalogError && <div className="empty-state">No products match this search. Try another item or category.</div>}</div>}
+          {catalogLoading ? <div className="empty-state" role="status">Loading products from Supabase...</div> : <div className="product-grid">{visibleProducts.map(product => { const quantityInCart = cart.find(line => line.productId === product.id)?.quantity || 0; const maxQuantity = Math.min(99, Number.isInteger(product.stock) ? product.stock : 99); return <ProductCard key={product.id} product={product} onAdd={onAdd} onAskQuestion={onAskQuestion} disabled={cartLoading || quantityInCart >= maxQuantity || (!quantityInCart && cart.length >= 100)} />; })}{visibleProducts.length === 0 && !catalogError && <div className="empty-state">No products match this search. Try another item or category.</div>}</div>}
         </section>
       </div>
       {isGuest ? <aside className="side-column" aria-label="Your basket"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={onCheckout} onClear={onClearCart} isGuest cartLoading={cartLoading} /></aside> : demoMode ? <aside className="side-column" aria-label="Your Kasua account"><WalletPanel balance={walletBalance} notify={notify} /><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} /><DeliveryPanel order={order} onTrack={() => navigate("orders")} /><TrustPanel onVerify={onVerify} /><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside> : <aside className="side-column" aria-label="Account status"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} cartLoading={cartLoading} /><p className="account-intro">Your account is secure. Checkout and payment are not connected yet.</p><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside>}
@@ -700,7 +706,9 @@ function ShopView({ products, cart, onAdd, onQuantity, onCheckout, onClearCart, 
 function MerchantView({
   inventory, onAddProduct, onEditProduct, onVerify, account, demoMode,
   inventoryLoading, inventoryError, orders, payouts, ordersLoading, payoutsLoading,
-  ordersError, payoutsError, onUpdateOrder, onRefreshOrders,
+  ordersError, payoutsError, insights, insightsLoading, insightsError,
+  questions, questionsLoading, questionsError, onAnswerQuestion,
+  onUpdateOrder, onRefreshOrders,
 }) {
   const [activeTab, setActiveTab] = useState("overview");
   const pendingOrders = orders.filter(order => order.status === "awaiting_merchant");
@@ -716,6 +724,8 @@ function MerchantView({
     { id: "overview", label: "Overview", icon: Store },
     { id: "orders", label: "Orders", icon: PackageCheck, count: pendingOrders.length },
     { id: "inventory", label: "Inventory", icon: Package },
+    { id: "questions", label: "Questions & support", icon: MessageCircle, count: questions.filter(question => question.status === "open").length },
+    { id: "insights", label: "Insights & reports", icon: TrendingUp },
     { id: "payouts", label: "Sales & payouts", icon: Coins },
   ];
 
@@ -768,8 +778,106 @@ function MerchantView({
         {!inventoryLoading && !inventoryError && inventory.length === 0 && <tr><td colSpan="6">No products yet. Add your first product to get started.</td></tr>}
       </tbody></table></div>
     </section>}
+    {activeTab === "questions" && <MerchantQuestionsPanel questions={questions} loading={questionsLoading} error={questionsError} onAnswer={onAnswerQuestion} />}
+    {activeTab === "insights" && <MerchantInsightsPanel insights={insights} loading={insightsLoading} error={insightsError} orders={orders} ordersLoading={ordersLoading} />}
     {activeTab === "payouts" && <MerchantPayouts payouts={payouts} loading={payoutsLoading} error={payoutsError} />}
   </>;
+}
+
+function MerchantQuestionsPanel({ questions, loading, error, onAnswer }) {
+  const [replies, setReplies] = useState({});
+  const openCount = questions.filter(question => question.status === "open").length;
+  return <section className="side-panel merchant-inbox-panel">
+    <div className="side-panel-header"><div><h2>Customer questions & support</h2><span className="subheading">Answer product questions from shoppers; avoid sharing personal customer details</span></div><span className="page-count">{openCount} waiting</span></div>
+    {error && <p className="form-error merchant-workspace-error" role="alert">{error}</p>}
+    {loading && <p className="merchant-empty">Loading customer questions…</p>}
+    {!loading && !questions.length && <p className="merchant-empty">No customer questions yet. Questions about your active products will appear here.</p>}
+    {questions.map(question => <MerchantQuestionCard key={question.id} question={question} reply={replies[question.id] || ""} onReplyChange={value => setReplies(current => ({ ...current, [question.id]: value }))} onAnswer={onAnswer} />)}
+    <p className="merchant-support-note">For delivery, payment, safety, or dispute issues, contact Kasua support. This inbox is for product questions and replies only.</p>
+  </section>;
+}
+
+function MerchantQuestionCard({ question, reply, onReplyChange, onAnswer }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submitAnswer(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await onAnswer(question.id, reply);
+      onReplyChange("");
+    } catch (replyError) {
+      setError(`Could not send your reply: ${replyError.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const date = new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(new Date(question.createdAt));
+  return <article className="merchant-question-card">
+    <div className="merchant-question-heading"><div><strong>{question.productName}</strong><span>{date}</span></div><span className={`merchant-order-status status-${question.status}`}>{question.status}</span></div>
+    <p className="merchant-question-text">{question.question}</p>
+    {question.answer && <div className="merchant-question-answer"><strong>Your reply</strong><p>{question.answer}</p></div>}
+    {question.status !== "closed" && <form className="merchant-reply-form" onSubmit={submitAnswer}>
+      <label htmlFor={`merchant-reply-${question.id}`}>{question.status === "answered" ? "Update reply" : "Your reply"}</label>
+      <textarea id={`merchant-reply-${question.id}`} minLength={5} maxLength={1000} required value={reply} onChange={event => onReplyChange(event.target.value)} placeholder="Write a helpful product answer" />
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <button className="primary-button" type="submit" disabled={busy}>{busy ? "Sending…" : question.status === "answered" ? "Update reply" : "Send reply"}</button>
+    </form>}
+  </article>;
+}
+
+function MerchantInsightsPanel({ insights, loading, error, orders, ordersLoading }) {
+  const totalGross = insights.reduce((sum, item) => sum + item.gross30d, 0);
+  const totalUnits = insights.reduce((sum, item) => sum + item.units30d, 0);
+  const totalOrders = insights.reduce((sum, item) => sum + item.orders30d, 0);
+  const topProducts = [...insights].filter(item => item.units30d > 0).sort((a, b) => b.units30d - a.units30d).slice(0, 5);
+  const maxUnits = Math.max(1, ...topProducts.map(item => item.units30d));
+  const liveInFulfillment = orders.filter(order => ["accepted", "preparing", "at_hub", "quality_check", "ready_for_dispatch", "in_transit"].includes(order.status)).length;
+  return <div className="merchant-insights-page">
+    <section className="side-panel merchant-report-panel">
+      <div className="side-panel-header"><div><h2>Performance report</h2><span className="subheading">Measured from paid orders in the last 30 days</span></div><span className="page-count">Last 30 days</span></div>
+      {error && <p className="form-error merchant-workspace-error" role="alert">{error}</p>}
+      <div className="merchant-report-metrics">
+        <StatCard label="Gross order sales" value={loading ? "…" : formatNaira(totalGross)} detail="Before fees, refunds, and payouts" />
+        <StatCard label="Units ordered" value={loading ? "…" : totalUnits} detail="From paid orders" />
+        <StatCard label="Offer order count" value={loading ? "…" : totalOrders} detail="Summed per listing; baskets can count more than once" />
+        <StatCard label="In fulfillment" value={ordersLoading ? "…" : liveInFulfillment} detail="Current active merchant orders" />
+      </div>
+      <p className="merchant-insight-caveat">Sales and demand reflect paid order lines, not page views; totals are gross and do not account for fees or refunds. Orders containing multiple listings can contribute to more than one offer count.</p>
+      <div className="merchant-top-products"><h3>Top products by units ordered</h3>
+        {loading && <p className="merchant-empty">Loading product performance…</p>}
+        {!loading && topProducts.length === 0 && <p className="merchant-empty">Paid sales data will appear after your first completed checkout.</p>}
+        {topProducts.map((item, index) => <div className="merchant-performance-row" key={item.offerId}>
+          <span className="merchant-performance-rank">{index + 1}</span><div className="merchant-performance-product"><strong>{item.name}</strong><span>{item.units30d} units · {formatNaira(item.gross30d)}</span><div className="merchant-performance-track"><span style={{ width: `${Math.max(4, item.units30d / maxUnits * 100)}%` }} /></div></div>
+        </div>)}
+      </div>
+    </section>
+    <section className="side-panel merchant-demand-panel">
+      <div className="side-panel-header"><div><h2>Demand & stock recommendations</h2><span className="subheading">A simple 14-day pace estimate from recent paid orders</span></div></div>
+      <p className="merchant-insight-caveat">Recommendations are directional, based on the last 30 days of orders and current listed stock; they are not a guarantee of future demand.</p>
+      {insights.map(item => {
+        const fourteenDayDemand = Math.ceil(item.units30d / 30 * 14);
+        const suggestedRestock = Math.max(0, fourteenDayDemand - item.stock);
+        const daysOfStock = item.units30d ? Math.floor(item.stock / (item.units30d / 30)) : null;
+        const needsStock = suggestedRestock > 0;
+        return <article className="merchant-insight-product" key={item.offerId}>
+          <div className="merchant-insight-product-heading"><div><strong>{item.name}</strong><span>{item.unit}{item.size ? ` · ${item.size}` : ""} · {item.category}</span></div><span className={`stock-pill ${item.stock === 0 ? "empty" : ""}`}>{item.stock} in stock</span></div>
+          <div className="merchant-insight-facts"><span>7-day demand <strong>{item.units7d}</strong></span><span>30-day demand <strong>{item.units30d}</strong></span><span>Estimated cover <strong>{daysOfStock === null ? "No sales data" : `${daysOfStock} days`}</strong></span></div>
+          <p className={needsStock ? "merchant-stock-advice needs-stock" : "merchant-stock-advice"}>{needsStock ? `Consider restocking about ${suggestedRestock} units to cover the estimated next 14 days.` : item.units30d ? "Current stock covers the simple 14-day demand estimate." : "No recent paid-order demand; avoid automatic restock assumptions."}</p>
+        </article>;
+      })}
+      {!loading && !insights.length && <p className="merchant-empty">Product demand data will appear when listings and order records are available.</p>}
+    </section>
+    <section className="side-panel merchant-pricing-panel">
+      <div className="side-panel-header"><div><h2>Pricing comparisons</h2><span className="subheading">Active verified offers with the same category, selling unit, and size</span></div></div>
+      <p className="merchant-insight-caveat">These are indicative category/pack comparisons, not guaranteed identical products. Quality, origin, freshness, and seller service can differ.</p>
+      <div className="inventory-wrap"><table className="inventory-table"><thead><tr><th>Product</th><th>Your price</th><th>Comparable offers</th><th>Observed range</th><th>Median</th></tr></thead><tbody>
+        {insights.map(item => <tr key={item.offerId}><td>{item.name}<small className="inventory-unit">{item.category} · {item.unit}{item.size ? ` · ${item.size}` : ""}</small></td><td>{formatNaira(item.price)}</td><td>{item.comparisonCount}</td><td>{item.comparisonCount ? `${formatNaira(item.comparisonMin)} – ${formatNaira(item.comparisonMax)}` : "Not enough data"}</td><td>{item.comparisonCount ? formatNaira(item.comparisonMedian) : "—"}</td></tr>)}
+        {!loading && !insights.length && <tr><td colSpan="5">No active listings to compare yet.</td></tr>}
+      </tbody></table></div>
+    </section>
+  </div>;
 }
 
 function MerchantOrderCard({ order, onUpdate }) {
@@ -848,6 +956,33 @@ function CheckoutDialog({ totals, walletBalance, onClose, onPlaceOrder }) {
   const [method, setMethod] = useState("wallet");
   const canPayWithWallet = walletBalance >= totals.total;
   return <Dialog title="Review your order" onClose={onClose}><div className="dialog-body"><div className="order-lines"><div className="order-line"><span>Items subtotal</span><strong>{formatNaira(totals.subtotal)}</strong></div><div className="order-line"><span>Delivery to Masaka</span><strong>{formatNaira(totals.delivery)}</strong></div><div className="order-line"><span>Kasua service fee</span><strong>{formatNaira(totals.service)}</strong></div><div className="order-line total"><span>Estimated total</span><strong>{formatNaira(totals.total)}</strong></div></div><div className="payment-label">Choose how to pay</div><div className="payment-options">{paymentMethods.map(payment => <label className={`payment-option ${method === payment.id ? "selected" : ""}`} key={payment.id}><input type="radio" name="payment" value={payment.id} checked={method === payment.id} disabled={payment.id === "wallet" && !canPayWithWallet} onChange={() => setMethod(payment.id)} /><span>{payment.title}</span><small>{payment.id === "wallet" ? `${formatNaira(walletBalance)} available` : payment.detail}</small></label>)}</div>{method === "wallet" && !canPayWithWallet && <p className="form-error">Wallet balance is too low. Choose another payment method.</p>}<button className="primary-button wide-button" type="button" disabled={method === "wallet" && !canPayWithWallet} onClick={() => onPlaceOrder(method, totals)}>Place order · {formatNaira(totals.total)}</button><p className="fine-print">Demo checkout only. Payment providers are not connected yet.</p></div></Dialog>;
+}
+
+function MerchantQuestionDialog({ product, onClose, onSubmit }) {
+  const [question, setQuestion] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await onSubmit(question);
+    } catch (submitError) {
+      setError(submitError.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return <Dialog title="Ask the merchant" onClose={onClose}>
+    <form className="dialog-body merchant-question-dialog" onSubmit={submit}>
+      <p>Ask a question about <strong>{product.name}</strong>. Keep messages focused on product details.</p>
+      <label className="form-field"><span>Your question</span><textarea minLength={5} maxLength={1000} required value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ask about size, freshness, ingredients, or availability" /></label>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Sending…" : "Send question"}</button>
+      <p className="fine-print">For payments, delivery problems, or disputes, contact Kasua support instead.</p>
+    </form>
+  </Dialog>;
 }
 
 function ProductDialog({ onClose, onSave, initialProduct, demoMode }) {
@@ -968,12 +1103,25 @@ export default function App() {
   const [inventoryError, setInventoryError] = useState("");
   const [merchantOrders, setMerchantOrders] = useDemoState(demoMode ? starterMerchantOrders : []);
   const [merchantPayouts, setMerchantPayouts] = useDemoState(demoMode ? starterMerchantPayouts : []);
+  const [merchantInsights, setMerchantInsights] = useDemoState(demoMode ? starterMerchantInsights : []);
+  const [merchantQuestions, setMerchantQuestions] = useDemoState(demoMode ? starterMerchantQuestions : []);
+  const [customerMerchantQuestions, setCustomerMerchantQuestions] = useState([]);
+  const [customerQuestionsOwner, setCustomerQuestionsOwner] = useState(null);
+  const [customerQuestionsLoading, setCustomerQuestionsLoading] = useState(false);
+  const [customerQuestionsError, setCustomerQuestionsError] = useState("");
   const [merchantOrdersOwner, setMerchantOrdersOwner] = useState(null);
   const [merchantPayoutsOwner, setMerchantPayoutsOwner] = useState(null);
+  const [merchantInsightsOwner, setMerchantInsightsOwner] = useState(null);
+  const [merchantQuestionsOwner, setMerchantQuestionsOwner] = useState(null);
   const [merchantOrdersLoading, setMerchantOrdersLoading] = useState(!demoMode);
   const [merchantPayoutsLoading, setMerchantPayoutsLoading] = useState(!demoMode);
+  const [merchantInsightsLoading, setMerchantInsightsLoading] = useState(!demoMode);
+  const [merchantQuestionsLoading, setMerchantQuestionsLoading] = useState(!demoMode);
   const [merchantOrdersError, setMerchantOrdersError] = useState("");
   const [merchantPayoutsError, setMerchantPayoutsError] = useState("");
+  const [merchantInsightsError, setMerchantInsightsError] = useState("");
+  const [merchantQuestionsError, setMerchantQuestionsError] = useState("");
+  const [questionProduct, setQuestionProduct] = useState(null);
   const [cart, setCart] = useLocalCart(demoMode || account?.role !== "consumer");
   const [cartReadyUserId, setCartReadyUserId] = useState(null);
   const [walletBalance, setWalletBalance] = useDemoState(12450);
@@ -1032,12 +1180,20 @@ export default function App() {
     let previousPending = new Set();
     setMerchantOrders([]);
     setMerchantPayouts([]);
+    setMerchantInsights([]);
+    setMerchantQuestions([]);
     setMerchantOrdersOwner(null);
     setMerchantPayoutsOwner(null);
+    setMerchantInsightsOwner(null);
+    setMerchantQuestionsOwner(null);
     setMerchantOrdersLoading(true);
     setMerchantPayoutsLoading(true);
+    setMerchantInsightsLoading(true);
+    setMerchantQuestionsLoading(true);
     setMerchantOrdersError("");
     setMerchantPayoutsError("");
+    setMerchantInsightsError("");
+    setMerchantQuestionsError("");
 
     async function refreshOrders() {
       try {
@@ -1073,14 +1229,48 @@ export default function App() {
       }
     }
 
+    async function refreshInsights() {
+      try {
+        const rows = await loadMerchantInsights();
+        if (!active) return;
+        setMerchantInsights(rows);
+        setMerchantInsightsOwner(account.id);
+        setMerchantInsightsError("");
+      } catch (error) {
+        if (active) setMerchantInsightsError(`Could not load product insights: ${error.message}`);
+      } finally {
+        if (active) setMerchantInsightsLoading(false);
+      }
+    }
+
+    async function refreshQuestions() {
+      try {
+        const rows = await loadMerchantQuestions();
+        if (!active) return;
+        setMerchantQuestions(rows);
+        setMerchantQuestionsOwner(account.id);
+        setMerchantQuestionsError("");
+      } catch (error) {
+        if (active) setMerchantQuestionsError(`Could not load customer questions: ${error.message}`);
+      } finally {
+        if (active) setMerchantQuestionsLoading(false);
+      }
+    }
+
     void refreshOrders();
     void refreshPayouts();
+    void refreshInsights();
+    void refreshQuestions();
     const timer = window.setInterval(() => { void refreshOrders(); }, 20000);
     const payoutTimer = window.setInterval(() => { void refreshPayouts(); }, 60000);
+    const insightsTimer = window.setInterval(() => { void refreshInsights(); }, 60000);
+    const questionsTimer = window.setInterval(() => { void refreshQuestions(); }, 60000);
     return () => {
       active = false;
       window.clearInterval(timer);
       window.clearInterval(payoutTimer);
+      window.clearInterval(insightsTimer);
+      window.clearInterval(questionsTimer);
     };
   }, [demoMode, account?.id, account?.role, account?.verificationStatus]);
 
@@ -1089,6 +1279,40 @@ export default function App() {
     const phoneKey = demoAccount.phone.replace(/\D/g, "");
     if (phoneKey && !demoAccounts[phoneKey]) setDemoAccounts(current => ({ ...current, [phoneKey]: { ...demoAccount, phoneKey } }));
   }, [demoAccount, demoAccounts, setDemoAccounts]);
+
+  useEffect(() => {
+    if (account?.role !== "consumer" || demoMode) {
+      setCustomerMerchantQuestions([]);
+      setCustomerQuestionsOwner(null);
+      setCustomerQuestionsLoading(false);
+      setCustomerQuestionsError("");
+      return undefined;
+    }
+    let active = true;
+    setCustomerMerchantQuestions([]);
+    setCustomerQuestionsOwner(null);
+    setCustomerQuestionsLoading(true);
+    setCustomerQuestionsError("");
+    async function refreshQuestions() {
+      try {
+        const rows = await loadCustomerMerchantQuestions();
+        if (!active) return;
+        setCustomerMerchantQuestions(rows);
+        setCustomerQuestionsOwner(account.id);
+        setCustomerQuestionsError("");
+      } catch (error) {
+        if (active) setCustomerQuestionsError(`Could not load your merchant messages: ${error.message}`);
+      } finally {
+        if (active) setCustomerQuestionsLoading(false);
+      }
+    }
+    void refreshQuestions();
+    const timer = window.setInterval(() => { void refreshQuestions(); }, 60000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [demoMode, account?.id, account?.role]);
 
   useEffect(() => {
     window.localStorage.setItem("kasua-customer-priorities", JSON.stringify(customerPrioritiesByAccount));
@@ -1291,6 +1515,66 @@ export default function App() {
       setMerchantOrdersError("");
     } catch (error) {
       setMerchantOrdersError(`Order was updated, but the latest order list could not be loaded: ${error.message}`);
+    }
+  }
+  function openMerchantQuestion(product) {
+    if (account?.role !== "consumer") {
+      notify("Sign in with a customer account to ask this merchant a question.");
+      setEntryPage("login");
+      return;
+    }
+    setQuestionProduct(product);
+    setDialog("askQuestion");
+  }
+  async function submitMerchantQuestion(question) {
+    if (!questionProduct) throw new Error("Choose a product to ask about.");
+    const newQuestion = {
+      id: `question-${Date.now()}`,
+      offerId: questionProduct.id,
+      productName: questionProduct.name,
+      question: question.trim(),
+      answer: "",
+      status: "open",
+      createdAt: new Date().toISOString(),
+    };
+    if (demoMode) {
+      setMerchantQuestions(current => [newQuestion, ...current]);
+      setCustomerMerchantQuestions(current => [newQuestion, ...current]);
+    } else {
+      await askMerchantQuestion(questionProduct.id, question);
+      try {
+        const questions = await loadCustomerMerchantQuestions();
+        setCustomerMerchantQuestions(questions);
+        setCustomerQuestionsOwner(account.id);
+        setCustomerQuestionsError("");
+      } catch (error) {
+        setCustomerQuestionsError(`Your question was sent, but history could not be refreshed: ${error.message}`);
+      }
+    }
+    setDialog(null);
+    setQuestionProduct(null);
+    notify("Your question was sent to the merchant.");
+  }
+  async function replyToMerchantQuestion(questionId, reply) {
+    if (demoMode) {
+      setMerchantQuestions(current => current.map(question => question.id === questionId
+        ? { ...question, answer: reply.trim(), status: "answered", answeredAt: new Date().toISOString() }
+        : question));
+      setCustomerMerchantQuestions(current => current.map(question => question.id === questionId
+        ? { ...question, answer: reply.trim(), status: "answered", answeredAt: new Date().toISOString() }
+        : question));
+      notify("Demo reply saved for this session.");
+      return;
+    }
+    await answerMerchantQuestion(questionId, reply);
+    try {
+      const questions = await loadMerchantQuestions();
+      setMerchantQuestions(questions);
+      setMerchantQuestionsOwner(account.id);
+      setMerchantQuestionsError("");
+      notify("Your reply was sent.");
+    } catch (error) {
+      setMerchantQuestionsError(`Your reply was sent, but the inbox could not refresh: ${error.message}`);
     }
   }
   async function saveProduct(form, existingProduct) {
@@ -1628,7 +1912,7 @@ export default function App() {
     if (entryPage === "admin" && demoMode) return <AdminView onExit={() => { window.history.replaceState(null, "", "/"); setEntryPage("landing"); }} isDemo />;
     return <div className="app-shell" id="top">
       <Header search={search} setSearch={setSearch} cartCount={cart.reduce((sum, line) => sum + line.quantity, 0)} walletBalance={walletBalance} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={null} onLogout={() => {}} demoMode={demoMode} isGuest onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} />
-      <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={() => openCheckout(null)} onClearCart={() => setCart([])} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} supportCases={[]} order={order} account={null} accountName="Guest" onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={() => {}} onRefreshOrder={refreshOrder} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} isGuest catalogLoading={catalogLoading} catalogError={catalogError} />
+      <ShopView products={products} cart={cart} onAdd={addToCart} onAskQuestion={openMerchantQuestion} onQuantity={changeQuantity} onCheckout={() => openCheckout(null)} onClearCart={() => setCart([])} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} supportCases={[]} order={order} account={null} accountName="Guest" onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={() => {}} onRefreshOrder={refreshOrder} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} isGuest catalogLoading={catalogLoading} catalogError={catalogError} />
       <Toast message={toast} />
     </div>;
   }
@@ -1637,8 +1921,9 @@ export default function App() {
 
   return <div className="app-shell" id="top">
     <Header search={search} setSearch={setSearch} cartCount={cartCount} walletBalance={walletBalance} onWallet={() => document.getElementById("wallet")?.scrollIntoView({ behavior: "smooth", block: "center" })} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={account} onLogout={logout} demoMode={demoMode} />
-    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }} onVerify={() => setDialog("verification")} account={account} demoMode={demoMode} inventoryLoading={inventoryLoading} inventoryError={inventoryError} orders={demoMode || merchantOrdersOwner === account.id ? merchantOrders : []} payouts={demoMode || merchantPayoutsOwner === account.id ? merchantPayouts : []} ordersLoading={merchantOrdersLoading} payoutsLoading={merchantPayoutsLoading} ordersError={merchantOrdersError} payoutsError={merchantPayoutsError} onUpdateOrder={changeMerchantOrderStatus} onRefreshOrders={refreshMerchantOrderList} />}</main>
+    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onAskQuestion={openMerchantQuestion} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} merchantQuestions={demoMode || customerQuestionsOwner === account.id ? customerMerchantQuestions : []} merchantQuestionsLoading={customerQuestionsLoading} merchantQuestionsError={customerQuestionsError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }} onVerify={() => setDialog("verification")} account={account} demoMode={demoMode} inventoryLoading={inventoryLoading} inventoryError={inventoryError} orders={demoMode || merchantOrdersOwner === account.id ? merchantOrders : []} payouts={demoMode || merchantPayoutsOwner === account.id ? merchantPayouts : []} insights={demoMode || merchantInsightsOwner === account.id ? merchantInsights : []} insightsLoading={merchantInsightsLoading} insightsError={merchantInsightsError} questions={demoMode || merchantQuestionsOwner === account.id ? merchantQuestions : []} questionsLoading={merchantQuestionsLoading} questionsError={merchantQuestionsError} onAnswerQuestion={replyToMerchantQuestion} ordersLoading={merchantOrdersLoading} payoutsLoading={merchantPayoutsLoading} ordersError={merchantOrdersError} payoutsError={merchantPayoutsError} onUpdateOrder={changeMerchantOrderStatus} onRefreshOrders={refreshMerchantOrderList} />}</main>
     {dialog === "checkout" && checkoutTotals && <CheckoutDialog totals={checkoutTotals} walletBalance={walletBalance} onClose={() => setDialog(null)} onPlaceOrder={placeOrder} />}
+    {dialog === "askQuestion" && questionProduct && <MerchantQuestionDialog product={questionProduct} onClose={() => { setDialog(null); setQuestionProduct(null); }} onSubmit={submitMerchantQuestion} />}
     {dialog === "addProduct" && <ProductDialog key={editingProduct?.id || "new-product"} onClose={() => { setDialog(null); setEditingProduct(null); }} onSave={saveProduct} initialProduct={editingProduct} demoMode={demoMode} />}
     {dialog === "verification" && <VerificationDialog onClose={() => setDialog(null)} />}
     {dialog === "complaint" && <ComplaintDialog onClose={() => setDialog(null)} onSubmit={submitCustomerComplaint} />}
