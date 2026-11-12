@@ -221,7 +221,12 @@ function MerchantRegistrationWizard({ onRegister, demoMode }) {
   async function submit(event) {
     event.preventDefault();
     setError("");
-    if (!demoMode && form.password !== form.confirmPassword) {
+    if (!form.email.trim() || form.password.length < 12) {
+      setError("Enter a valid email and a password with at least 12 characters.");
+      setStep(0);
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
       setStep(0);
       return;
@@ -273,11 +278,9 @@ function MerchantRegistrationWizard({ onRegister, demoMode }) {
     {step === 0 && <section className="onboarding-step-panel" aria-labelledby="merchant-account-step">
       <div className="onboarding-section-heading"><span className="eyebrow"><UserRound size={14} /> Step 1 of 3</span><h2 id="merchant-account-step">About you</h2><p>Use your full legal name as it appears on your identity document.</p></div>
       <div className="form-field"><label htmlFor="merchant-legal-name">Legal name</label><input id="merchant-legal-name" name="name" autoComplete="name" minLength="2" maxLength="120" value={form.name} onChange={update} required disabled={busy} /></div>
-      {demoMode ? <div className="form-field"><label htmlFor="merchant-demo-phone">Mobile number</label><input id="merchant-demo-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update} required disabled={busy} placeholder="e.g. 080 1234 5678" /></div> : <>
-        <div className="form-field"><label htmlFor="merchant-email">Email address</label><input id="merchant-email" name="email" type="email" autoComplete="email" value={form.email} onChange={update} required disabled={busy} /></div>
-        <div className="form-row"><div className="form-field"><label htmlFor="merchant-password">Password</label><input id="merchant-password" name="password" type="password" autoComplete="new-password" minLength="12" value={form.password} onChange={update} required disabled={busy} /></div><div className="form-field"><label htmlFor="merchant-confirm-password">Confirm password</label><input id="merchant-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength="12" value={form.confirmPassword} onChange={update} required disabled={busy} /></div></div>
-        <div className="form-field"><label htmlFor="merchant-contact-phone">Business contact number</label><input id="merchant-contact-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update} required disabled={busy} placeholder="e.g. 080 1234 5678" /><small>Contact detail only; it is not used to sign in or verify your identity.</small></div>
-      </>}
+      <div className="form-field"><label htmlFor="merchant-email">Email address</label><input id="merchant-email" name="email" type="email" autoComplete="email" value={form.email} onChange={update} required disabled={busy} /></div>
+      <div className="form-row"><div className="form-field"><label htmlFor="merchant-password">Password</label><input id="merchant-password" name="password" type="password" autoComplete="new-password" minLength="12" value={form.password} onChange={update} required disabled={busy} /></div><div className="form-field"><label htmlFor="merchant-confirm-password">Confirm password</label><input id="merchant-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength="12" value={form.confirmPassword} onChange={update} required disabled={busy} /></div></div>
+      <div className="form-field"><label htmlFor="merchant-contact-phone">Business contact number</label><input id="merchant-contact-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update} required disabled={busy} placeholder="e.g. 080 1234 5678" /><small>Contact detail only; it is not used to sign in or verify your identity.</small></div>
     </section>}
     {step === 1 && <section className="onboarding-step-panel" aria-labelledby="merchant-business-step">
       <div className="onboarding-section-heading"><span className="eyebrow"><Store size={14} /> Step 2 of 3</span><h2 id="merchant-business-step">Your business and stall</h2><p>Tell us where customers and the Kasua team can find your business.</p></div>
@@ -314,7 +317,7 @@ function LoginPage({ onLogin, onRegister, onHome, demoMode }) {
     setBusy(true);
     setError("");
     try {
-      const result = await onLogin(role, demoMode ? phone : email, password);
+      const result = await onLogin(role, demoMode && role === "consumer" ? phone : email, password);
       if (result?.error) setError(result.error);
     } catch (loginError) {
       setError(loginError.message || "Could not sign in.");
@@ -330,7 +333,7 @@ function LoginPage({ onLogin, onRegister, onHome, demoMode }) {
       <h1>Login to Kasua</h1>
       <p className="account-intro">Choose the role for the account you registered.</p>
       <div className="role-picker" aria-label="Login as"><button type="button" className={role === "consumer" ? "active" : ""} disabled={busy} onClick={() => setRole("consumer")}><ShoppingBag size={15} /> Consumer</button><button type="button" className={role === "merchant" ? "active" : ""} disabled={busy} onClick={() => setRole("merchant")}><Store size={15} /> Merchant</button></div>
-      <form className="account-form" onSubmit={submit}>{demoMode ? <div className="form-field"><label htmlFor="login-phone">Mobile number</label><input id="login-phone" name="phone" type="tel" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value)} required placeholder="e.g. 080 1234 5678" /></div> : <><div className="form-field"><label htmlFor="login-email">Email address</label><input id="login-email" name="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} required /></div><div className="form-field"><label htmlFor="login-password">Password</label><input id="login-password" name="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></div></>}{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Please wait..." : `Login as ${role}`}</button><p className="fine-print">{demoMode ? "Demo login checks accounts stored in this browser only." : "Email/password sign-in is enabled for pre-release testing. Email ownership is not confirmed."}</p></form>
+      <form className="account-form" onSubmit={submit}>{demoMode && role === "consumer" ? <div className="form-field"><label htmlFor="login-phone">Mobile number</label><input id="login-phone" name="phone" type="tel" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value)} required placeholder="e.g. 080 1234 5678" /></div> : <><div className="form-field"><label htmlFor="login-email">Email address</label><input id="login-email" name="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} required /></div><div className="form-field"><label htmlFor="login-password">Password</label><input id="login-password" name="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></div></>}{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Please wait..." : `Login as ${role}`}</button><p className="fine-print">{demoMode ? role === "merchant" ? "Preview merchant sign-in checks the email and password used at registration; preview accounts are not securely authenticated." : "Demo login checks consumer accounts stored in this browser only." : "Email/password sign-in is enabled for pre-release testing. Email ownership is not confirmed."}</p></form>
       <p className="auth-switch">New to Kasua? <button className="text-button" type="button" onClick={onRegister}>Register</button></p>
     </section>
     </main>
@@ -1275,9 +1278,14 @@ export default function App() {
   }, [demoMode, account?.id, account?.role, account?.verificationStatus]);
 
   useEffect(() => {
-    if (!demoMode || !demoAccount?.phone) return;
-    const phoneKey = demoAccount.phone.replace(/\D/g, "");
-    if (phoneKey && !demoAccounts[phoneKey]) setDemoAccounts(current => ({ ...current, [phoneKey]: { ...demoAccount, phoneKey } }));
+    if (!demoMode || !demoAccount) return;
+    const phoneKey = demoAccount.phone?.replace(/\D/g, "") || "";
+    const accountKey = demoAccount.role === "merchant"
+      ? `merchant:${demoAccount.email?.trim().toLowerCase()}`
+      : phoneKey;
+    if (accountKey && !demoAccounts[accountKey]) {
+      setDemoAccounts(current => ({ ...current, [accountKey]: { ...demoAccount, phoneKey } }));
+    }
   }, [demoAccount, demoAccounts, setDemoAccounts]);
 
   useEffect(() => {
@@ -1727,7 +1735,17 @@ export default function App() {
 
     const phoneKey = newAccount.phone.replace(/\D/g, "");
     if (phoneKey.length < 7) return { error: "Enter a valid mobile number." };
-    if (demoAccounts[phoneKey]) return { error: "An account already uses this number. Login with its registered role." };
+    if (newAccount.role === "merchant"
+      && (!newAccount.email?.trim() || newAccount.password.length < 12)) {
+      return { error: "Merchant sign-up requires a valid email and a password with at least 12 characters." };
+    }
+    if (Object.values(demoAccounts).some(saved => saved.phoneKey === phoneKey)) {
+      return { error: "An account already uses this number. Login with its registered role." };
+    }
+    const accountKey = newAccount.role === "merchant"
+      ? `merchant:${newAccount.email.trim().toLowerCase()}`
+      : phoneKey;
+    if (demoAccounts[accountKey]) return { error: "An account already uses this email. Login with its registered role." };
     let savedApplication;
     if (newAccount.application) {
       const { identityFile, businessFile, ...applicationData } = newAccount.application;
@@ -1742,7 +1760,7 @@ export default function App() {
       };
     }
     const savedAccount = { ...newAccount, application: savedApplication, phoneKey };
-    setDemoAccounts(current => ({ ...current, [phoneKey]: savedAccount }));
+    setDemoAccounts(current => ({ ...current, [accountKey]: savedAccount }));
     setDemoAccount(savedAccount);
     setAccount(savedAccount);
     return null;
@@ -1757,7 +1775,7 @@ export default function App() {
         const loadedAccount = await loadAccountProfile(data.user.id);
         if (loadedAccount.role !== role) {
           await supabase.auth.signOut();
-          return { error: `This number is registered as a ${loadedAccount.role}. Choose that role to continue.` };
+          return { error: `This email is registered as a ${loadedAccount.role}. Choose that role to continue.` };
         }
         setAccount({ ...loadedAccount, email: data.user.email });
         return null;
@@ -1767,10 +1785,13 @@ export default function App() {
       }
     }
 
-    const phoneKey = identifier.replace(/\D/g, "");
-    const savedAccount = demoAccounts[phoneKey];
-    if (!savedAccount) return { error: "No account found for that number. Register first." };
-    if (savedAccount.role !== role) return { error: `This number is registered as a ${savedAccount.role}. Choose that role to continue.` };
+    const accountKey = role === "merchant"
+      ? `merchant:${identifier.trim().toLowerCase()}`
+      : identifier.replace(/\D/g, "");
+    const savedAccount = demoAccounts[accountKey];
+    if (!savedAccount) return { error: `No ${role} account found for that ${role === "merchant" ? "email" : "number"}. Register first.` };
+    if (savedAccount.role !== role) return { error: `This account is registered as a ${savedAccount.role}. Choose that role to continue.` };
+    if (role === "merchant" && savedAccount.password !== password) return { error: "The email or password is incorrect." };
     setDemoAccount(savedAccount);
     setAccount(savedAccount);
     return null;

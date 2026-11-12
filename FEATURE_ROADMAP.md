@@ -5,7 +5,7 @@ Status key: checked items are implemented in the app; some require backend migra
 ## Customer Marketplace
 
 - [x] Landing page and separate registration and login screens (browser-local demo only; not secure authentication).
-- [x] Consumer and merchant account-role selection (demo checks one role per normalized phone number in local storage; server enforcement is still needed).
+- [x] Consumer and merchant account-role selection (demo consumers use a phone number and demo merchants use email/password; demo credentials are session-only and server enforcement is still needed).
 - [ ] Secure account authentication, recovery, sessions, and server-enforced single-role ownership.
 - [ ] Customer profiles and saved delivery addresses.
 - [x] Browse the seeded product list by its current flat categories.
@@ -31,6 +31,7 @@ Status key: checked items are implemented in the app; some require backend migra
 ## Merchant Dashboard and Operations
 
 - [x] Guided merchant registration collects legal/contact details, business/stall/location details, and required ID and business evidence.
+- [x] Merchant sign-in uses the registered email and password; demo sign-in checks the session-only preview account and is not secure authentication.
 - [x] Private identity/business document storage, reviewer evidence access, verification checks, resubmission, decisions, and audit history are implemented in Supabase migrations and the app; not active until deployed and configured.
 - [x] Versioned merchant policy acceptance is recorded with its timestamp; the current concise checklist is draft text and must be reviewed/finalized before public launch.
 - [x] Merchant onboarding dashboard shows review status, milestones, submitted evidence metadata, and reviewer feedback; demo mode warns and stores only dummy-file metadata.
