@@ -149,7 +149,12 @@ function RegisterPage({ onRegister, onLogin, onHome, demoMode }) {
     event.preventDefault();
     setBusy(true);
     setError("");
-    if (!demoMode && form.password !== form.confirmPassword) {
+    if (form.password.length < 12) {
+      setError("Use a password with at least 12 characters.");
+      setBusy(false);
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
       setBusy(false);
       return;
@@ -174,13 +179,12 @@ function RegisterPage({ onRegister, onLogin, onHome, demoMode }) {
       <div className="role-picker" aria-label="Account type"><button type="button" className={accountType === "consumer" ? "active" : ""} disabled={busy} onClick={() => setAccountType("consumer")}><ShoppingBag size={15} /> Consumer</button><button type="button" className={accountType === "merchant" ? "active" : ""} disabled={busy} onClick={() => setAccountType("merchant")}><Store size={15} /> Merchant</button></div>
       {accountType === "merchant" ? <MerchantRegistrationWizard onRegister={onRegister} demoMode={demoMode} /> : <form className="account-form" onSubmit={submit}>
         <div className="form-field"><label htmlFor="account-name">Your name</label><input id="account-name" name="name" autoComplete="name" value={form.name} onChange={update} required disabled={busy} /></div>
-        {demoMode ? <div className="form-field"><label htmlFor="account-phone">Mobile number</label><input id="account-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update} required disabled={busy} placeholder="e.g. 080 1234 5678" /></div> : <>
-          <div className="form-field"><label htmlFor="account-email">Email address</label><input id="account-email" name="email" type="email" autoComplete="email" value={form.email} onChange={update} required disabled={busy} /></div>
-          <div className="form-row"><div className="form-field"><label htmlFor="account-password">Password</label><input id="account-password" name="password" type="password" autoComplete="new-password" minLength="12" value={form.password} onChange={update} required disabled={busy} /></div><div className="form-field"><label htmlFor="account-confirm-password">Confirm password</label><input id="account-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength="12" value={form.confirmPassword} onChange={update} required disabled={busy} /></div></div>
-        </>}
+        <div className="form-field"><label htmlFor="account-email">Email address</label><input id="account-email" name="email" type="email" autoComplete="email" value={form.email} onChange={update} required disabled={busy} /></div>
+        <div className="form-row"><div className="form-field"><label htmlFor="account-password">Password</label><input id="account-password" name="password" type="password" autoComplete="new-password" minLength="12" value={form.password} onChange={update} required disabled={busy} /></div><div className="form-field"><label htmlFor="account-confirm-password">Confirm password</label><input id="account-confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength="12" value={form.confirmPassword} onChange={update} required disabled={busy} /></div></div>
+        <div className="form-field"><label htmlFor="account-phone">Mobile number</label><input id="account-phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update} required disabled={busy} placeholder="e.g. 080 1234 5678" /><small>Contact detail only; sign in using your email and password.</small></div>
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Please wait..." : "Create consumer account"}</button>
-        <p className="fine-print">{demoMode ? "Demo registration is stored in this browser. Do not use it for real customer data." : "Use a unique email and a password with at least 12 characters."}</p>
+        <p className="fine-print">{demoMode ? "Preview registration is kept only for this session and is not secure authentication. Do not use real account credentials." : "Use a unique email and a password with at least 12 characters."}</p>
       </form>}
       <p className="auth-switch">Already registered? <button className="text-button" type="button" onClick={onLogin}>Login</button></p>
     </section>
@@ -307,7 +311,6 @@ function MerchantRegistrationWizard({ onRegister, demoMode }) {
 
 function LoginPage({ onLogin, onRegister, onHome, demoMode }) {
   const [role, setRole] = useState("consumer");
-  const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -317,7 +320,7 @@ function LoginPage({ onLogin, onRegister, onHome, demoMode }) {
     setBusy(true);
     setError("");
     try {
-      const result = await onLogin(role, demoMode && role === "consumer" ? phone : email, password);
+      const result = await onLogin(role, email, password);
       if (result?.error) setError(result.error);
     } catch (loginError) {
       setError(loginError.message || "Could not sign in.");
@@ -333,7 +336,7 @@ function LoginPage({ onLogin, onRegister, onHome, demoMode }) {
       <h1>Login to Kasua</h1>
       <p className="account-intro">Choose the role for the account you registered.</p>
       <div className="role-picker" aria-label="Login as"><button type="button" className={role === "consumer" ? "active" : ""} disabled={busy} onClick={() => setRole("consumer")}><ShoppingBag size={15} /> Consumer</button><button type="button" className={role === "merchant" ? "active" : ""} disabled={busy} onClick={() => setRole("merchant")}><Store size={15} /> Merchant</button></div>
-      <form className="account-form" onSubmit={submit}>{demoMode && role === "consumer" ? <div className="form-field"><label htmlFor="login-phone">Mobile number</label><input id="login-phone" name="phone" type="tel" autoComplete="tel" value={phone} onChange={event => setPhone(event.target.value)} required placeholder="e.g. 080 1234 5678" /></div> : <><div className="form-field"><label htmlFor="login-email">Email address</label><input id="login-email" name="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} required /></div><div className="form-field"><label htmlFor="login-password">Password</label><input id="login-password" name="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></div></>}{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Please wait..." : `Login as ${role}`}</button><p className="fine-print">{demoMode ? role === "merchant" ? "Preview merchant sign-in checks the email and password used at registration; preview accounts are not securely authenticated." : "Demo login checks consumer accounts stored in this browser only." : "Email/password sign-in is enabled for pre-release testing. Email ownership is not confirmed."}</p></form>
+      <form className="account-form" onSubmit={submit}><div className="form-field"><label htmlFor="login-email">Email address</label><input id="login-email" name="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} required /></div><div className="form-field"><label htmlFor="login-password">Password</label><input id="login-password" name="password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></div>{error && <p className="form-error" role="alert">{error}</p>}<button className="primary-button wide-button" type="submit" disabled={busy}>{busy ? "Please wait..." : `Login as ${role}`}</button><p className="fine-print">{demoMode ? "Preview sign-in checks the email and password used at registration; preview accounts are not securely authenticated." : "Email/password sign-in is enabled for pre-release testing. Email ownership is not confirmed."}</p></form>
       <p className="auth-switch">New to Kasua? <button className="text-button" type="button" onClick={onRegister}>Register</button></p>
     </section>
     </main>
@@ -1280,9 +1283,8 @@ export default function App() {
   useEffect(() => {
     if (!demoMode || !demoAccount) return;
     const phoneKey = demoAccount.phone?.replace(/\D/g, "") || "";
-    const accountKey = demoAccount.role === "merchant"
-      ? `merchant:${demoAccount.email?.trim().toLowerCase()}`
-      : phoneKey;
+    const email = demoAccount.email?.trim().toLowerCase();
+    const accountKey = email ? `email:${email}` : "";
     if (accountKey && !demoAccounts[accountKey]) {
       setDemoAccounts(current => ({ ...current, [accountKey]: { ...demoAccount, phoneKey } }));
     }
@@ -1735,16 +1737,10 @@ export default function App() {
 
     const phoneKey = newAccount.phone.replace(/\D/g, "");
     if (phoneKey.length < 7) return { error: "Enter a valid mobile number." };
-    if (newAccount.role === "merchant"
-      && (!newAccount.email?.trim() || newAccount.password.length < 12)) {
-      return { error: "Merchant sign-up requires a valid email and a password with at least 12 characters." };
+    if (!newAccount.email?.trim() || newAccount.password.length < 12) {
+      return { error: "Use a valid email and a password with at least 12 characters." };
     }
-    if (Object.values(demoAccounts).some(saved => saved.phoneKey === phoneKey)) {
-      return { error: "An account already uses this number. Login with its registered role." };
-    }
-    const accountKey = newAccount.role === "merchant"
-      ? `merchant:${newAccount.email.trim().toLowerCase()}`
-      : phoneKey;
+    const accountKey = `email:${newAccount.email.trim().toLowerCase()}`;
     if (demoAccounts[accountKey]) return { error: "An account already uses this email. Login with its registered role." };
     let savedApplication;
     if (newAccount.application) {
@@ -1785,13 +1781,10 @@ export default function App() {
       }
     }
 
-    const accountKey = role === "merchant"
-      ? `merchant:${identifier.trim().toLowerCase()}`
-      : identifier.replace(/\D/g, "");
+    const accountKey = `email:${identifier.trim().toLowerCase()}`;
     const savedAccount = demoAccounts[accountKey];
-    if (!savedAccount) return { error: `No ${role} account found for that ${role === "merchant" ? "email" : "number"}. Register first.` };
-    if (savedAccount.role !== role) return { error: `This account is registered as a ${savedAccount.role}. Choose that role to continue.` };
-    if (role === "merchant" && savedAccount.password !== password) return { error: "The email or password is incorrect." };
+    if (!savedAccount || savedAccount.password !== password) return { error: "The email or password is incorrect." };
+    if (savedAccount.role !== role) return { error: `This email is registered as a ${savedAccount.role}. Choose that role to continue.` };
     setDemoAccount(savedAccount);
     setAccount(savedAccount);
     return null;
