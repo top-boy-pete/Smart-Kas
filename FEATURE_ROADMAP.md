@@ -1,11 +1,11 @@
 # Smart Kasua Feature Checklist
 
-Status key: checked items are present in the current browser demo; unchecked items remain to be built. A checked demo item is not a claim of production readiness.
+Status key: checked items are implemented in the app; some require backend migrations or production services to be deployed and configured. Unchecked items remain to be built. A checked demo item is not a claim of production readiness.
 
 ## Customer Marketplace
 
 - [x] Landing page and separate registration and login screens (browser-local demo only; not secure authentication).
-- [x] Consumer and merchant account-role selection (demo checks one role per normalized phone number in local storage; server enforcement is still needed).
+- [x] Consumer and merchant account-role selection (both roles use email/password; demo credentials are session-only and server enforcement is still needed).
 - [ ] Secure account authentication, recovery, sessions, and server-enforced single-role ownership.
 - [ ] Customer profiles and saved delivery addresses.
 - [x] Browse the seeded product list by its current flat categories.
@@ -30,21 +30,22 @@ Status key: checked items are present in the current browser demo; unchecked ite
 
 ## Merchant Dashboard and Operations
 
-- [x] Merchant application collects contact and basic stall/market/location details; status remains pending in the local demo.
-- [ ] Secure identity, business, stall, and location verification with reviewer decisions and audit history.
-- [ ] Merchant policy acceptance, recorded with policy version and timestamp.
-- [x] Product creation form with name, category, unit, price, and stock (local demo only).
-- [ ] Product editing, photo upload, and complete product specifications.
+- [x] Guided merchant registration collects legal/contact details, business/stall/location details, and required ID and business evidence.
+- [x] Consumer and merchant sign-in use the registered email and password; demo sign-in checks the session-only preview account and is not secure authentication.
+- [x] Private identity/business document storage, reviewer evidence access, verification checks, resubmission, decisions, and audit history are implemented in Supabase migrations and the app; not active until deployed and configured.
+- [x] Versioned merchant policy acceptance is recorded with its timestamp; the current concise checklist is draft text and must be reviewed/finalized before public launch.
+- [x] Merchant onboarding dashboard shows review status, milestones, submitted evidence metadata, and reviewer feedback; demo mode warns and stores only dummy-file metadata.
+- [x] Merchant product creation and editing with category, selling unit, price, stock, descriptions, structured specifications, and product photos.
 - [x] Category selection for a new product; no specialization requirement is enforced.
-- [ ] Server-backed pricing and stock management with reservation and out-of-stock handling.
-- [ ] Order notifications, acceptance/decline, and fulfillment status updates.
-- [ ] Collection, hub handoff, rider assignment, and delivery coordination.
+- [ ] Merchant-owned server-backed pricing and stock updates require applying the product migration; zero-stock listings will be hidden from the public catalog. Inventory reservation remains unimplemented.
+- [x] New paid-order notifications, merchant acceptance, preparation, and hub handoff status updates (requires `20261112000100_merchant_orders_and_payouts.sql`; live order creation is still a separate backend dependency).
+- [x] Delivery area/landmark visibility and merchant hub-handoff notes; [ ] rider assignment and final delivery coordination.
 - [ ] Three-tier merchant ranking with published eligibility rules.
-- [ ] Reliable sales ledger, payout records, reconciliation, and statements.
-- [ ] Customer questions, merchant support, and dispute workflows.
-- [ ] Product performance analytics and demand insights.
-- [ ] Pricing comparisons and stock recommendations.
-- [ ] Merchant performance reports.
+- [x] Paid-order sales summary and read-only payout records (payout ledger records must be written by a trusted server workflow); [ ] payout execution, reconciliation, and statements.
+- [x] Customer product questions, account-scoped merchant replies, and customer message history (requires `20261112000200_merchant_insights_and_questions.sql`); [ ] support cases and disputes for payment/delivery issues.
+- [x] Product performance analytics and 7/30-day paid-order demand insights.
+- [x] Indicative active-offer price comparisons by category, unit, and size plus transparent 14-day pace-based stock recommendations.
+- [x] Merchant performance reports based on recorded paid order lines (requires applying the insights migration).
 - [ ] Confirmed general-merchant and specialist-merchant participation through explicit policy and account tests.
 
 ## Catalog and Offers

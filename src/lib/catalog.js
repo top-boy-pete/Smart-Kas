@@ -1,5 +1,6 @@
 import { starterProducts } from "../data.js";
 import { supabase } from "./supabase.js";
+import { getMerchantCloudinaryImageUrl, isMerchantCloudinaryPublicId } from "./cloudinary.js";
 
 function normalizeCategory(name) {
   const value = (name || "").toLowerCase();
@@ -25,6 +26,7 @@ export async function loadPublicProducts() {
       description,
       attributes,
       variant_attributes,
+      condition,
       categories(name),
       merchant_offers!inner(
         id,
@@ -52,11 +54,22 @@ export async function loadPublicProducts() {
       productId: product.id,
       name: product.name,
       category,
+      description: product.description || "",
+      brand: attributes.brand || "",
+      origin: attributes.origin || "",
+      specifications: attributes.specifications || "",
+      size: variantAttributes.size || "",
+      condition: product.condition,
       price: offer.price_minor_units / 100,
       unit: variantAttributes.unit || attributes.unit || "per item",
       seller: offer.merchant_profiles.store_name,
       rating: null,
       note: offer.authenticity_notes || "Verified trader",
+      imageUrl: isMerchantCloudinaryPublicId(attributes.image_path)
+        ? getMerchantCloudinaryImageUrl(attributes.image_path)
+        : (attributes.image_path
+          ? supabase.storage.from("merchant-product-images").getPublicUrl(attributes.image_path).data.publicUrl
+          : null),
       image: fallbackImage(category),
       stock: offer.available_quantity,
     }));

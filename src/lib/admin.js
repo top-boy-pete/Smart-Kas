@@ -1,4 +1,6 @@
 import { supabase } from "./supabase.js";
+import { createMerchantDocumentDownloadUrl, isMerchantCloudinaryPublicId } from "./cloudinary.js";
+import { MERCHANT_DOCUMENT_BUCKET } from "./merchant-onboarding.js";
 
 async function callAdminRpc(functionName, parameters = {}) {
   if (!supabase) throw new Error("Supabase is not configured.");
@@ -18,7 +20,27 @@ export async function loadStaffRoles(userId) {
 }
 
 export async function loadMerchantApplications() {
-  return callAdminRpc("admin_list_merchant_applications");
+  const rows = await callAdminRpc("admin_list_merchant_applications");
+  return Promise.all(rows.map(async row => {
+    const [identityDocumentUrl, businessDocumentUrl] = await Promise.all([
+      createMerchantDocumentUrl(row.identity_document_path, row.identity_document_asset_id),
+      createMerchantDocumentUrl(row.business_document_path, row.business_document_asset_id),
+    ]);
+    return { ...row, identity_document_url: identityDocumentUrl, business_document_url: businessDocumentUrl };
+  }));
+}
+
+async function createMerchantDocumentUrl(path, assetId) {
+  if (!path) return null;
+  if (assetId && isMerchantCloudinaryPublicId(path)) {
+    return createMerchantDocumentDownloadUrl(path, assetId);
+  }
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { data, error } = await supabase.storage
+    .from(MERCHANT_DOCUMENT_BUCKET)
+    .createSignedUrl(path, 600, { download: true });
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export async function setMerchantReviewCheck(userId, checkKey, complete, notes = "") {
