@@ -24,6 +24,8 @@ import {
   answerMerchantQuestion, askMerchantQuestion, loadCustomerMerchantQuestions,
   loadMerchantInsights, loadMerchantQuestions,
 } from "./lib/merchant-insights.js";
+import MerchantFinancialDashboard from "./MerchantFinancialDashboard.jsx";
+import MerchantCreditReadiness from "./MerchantCreditReadiness.jsx";
 import {
   MERCHANT_DOCUMENT_MAX_BYTES, MERCHANT_POLICY_VERSION,
   removeMerchantDocuments, uploadMerchantDocuments, validateMerchantDocuments,
@@ -496,6 +498,23 @@ function MobileBottomNav({ activeItem, onNavigate }) {
   </nav>;
 }
 
+function CustomerSidebarNav({ activeItem, onNavigate }) {
+  const items = [
+    { id: "dashboard", label: "Dashboard", Icon: House },
+    { id: "orders", label: "Orders", Icon: ClipboardList },
+    { id: "market", label: "Market", Icon: Store },
+    { id: "profile", label: "Profile", Icon: UserRound },
+  ];
+  return <aside className="customer-sidebar">
+    <span className="customer-sidebar-heading">CUSTOMER MENU</span>
+    <nav aria-label="Customer navigation">
+      {items.map(({ id, label, Icon }) => <button key={id} type="button" className={`customer-sidebar-item ${activeItem === id ? "active" : ""}`} aria-current={activeItem === id ? "page" : undefined} onClick={() => onNavigate(id)}>
+        <Icon size={18} aria-hidden="true" /><span>{label}</span>
+      </button>)}
+    </nav>
+  </aside>;
+}
+
 function GuestNavDialog({ type, onClose, onLogin, onRegister }) {
   const isOrders = type === "orders";
   return <Dialog title={isOrders ? "Your orders" : "Your profile"} onClose={onClose}>
@@ -687,26 +706,31 @@ function ShopView({ products, cart, onAdd, onAskQuestion, onQuantity, onCheckout
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   return <>
-    <MobileBottomNav activeItem={activeNavItem} onNavigate={navigate} />
-    {activeNavItem === "dashboard" ? <CustomerDashboard accountName={accountName} isGuest={isGuest} products={products} purchaseHistory={purchaseHistory} priorities={priorities} onTogglePriority={onTogglePriority} onAdd={onAdd} onMarket={() => navigate("market")} catalogLoading={catalogLoading} /> : <>
-    {activeNavItem === "orders" && <CustomerOrdersPage accountName={accountName} isGuest={isGuest} purchaseHistory={purchaseHistory} order={order} onRefreshOrder={onRefreshOrder} onLogin={onLogin} onRegister={onRegister} demoMode={demoMode} />}
-    {activeNavItem === "profile" && <CustomerProfilePage account={account} isGuest={isGuest} priorities={priorities} onTogglePriority={onTogglePriority} onLogin={onLogin} onRegister={onRegister} onLogout={onLogout} questions={merchantQuestions} questionsLoading={merchantQuestionsLoading} questionsError={merchantQuestionsError} />}
-    {activeNavItem === "market" && <>
-    {!demoMode && <div className="backend-banner" role="status"><ShieldCheck size={16} /><span><strong>{isGuest ? "Browse without an account." : "Your account is connected."}</strong> Products and merchant offers are loaded from Supabase. {isGuest ? "Your basket stays on this device. Sign in to continue; checkout and payment are unavailable." : "Checkout and payment are not connected yet."}</span></div>}
-    <div className="welcome-row"><div><div className="eyebrow"><Sun size={14} /> Tuesday market, Masaka</div><h1>{isGuest ? "Browse today's market" : `Good morning, ${accountName}`}</h1></div><span className="account-role"><ShoppingBag size={14} /> {isGuest ? "Guest browsing" : "Consumer account"}</span></div>
-    <div className="market-layout">
-      <div className="main-column">
-        <section className="category-section"><div className="section-heading"><h2>Shop by category</h2><button className="text-button" type="button" onClick={() => setActiveCategory("All items")}>See all</button></div><CategoryPicker activeCategory={activeCategory} onChange={setActiveCategory} /></section>
-        <section id="products"><div className="section-heading products-heading"><div><h2>Fresh from Masaka</h2><p>Fair market prices, updated by verified traders today</p></div><select className="sort-select" value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort products"><option value="featured">Today's picks</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option></select></div>
-          {catalogError && <div className="empty-state" role="alert">{catalogError}</div>}
-          {catalogLoading ? <div className="empty-state" role="status">Loading products from Supabase...</div> : <div className="product-grid">{visibleProducts.map(product => { const quantityInCart = cart.find(line => line.productId === product.id)?.quantity || 0; const maxQuantity = Math.min(99, Number.isInteger(product.stock) ? product.stock : 99); return <ProductCard key={product.id} product={product} onAdd={onAdd} onAskQuestion={onAskQuestion} disabled={cartLoading || quantityInCart >= maxQuantity || (!quantityInCart && cart.length >= 100)} />; })}{visibleProducts.length === 0 && !catalogError && <div className="empty-state">No products match this search. Try another item or category.</div>}</div>}
-        </section>
+    <div className="customer-workspace">
+      <CustomerSidebarNav activeItem={activeNavItem} onNavigate={navigate} />
+      <div className="customer-workspace-content">
+        {activeNavItem === "dashboard" ? <CustomerDashboard accountName={accountName} isGuest={isGuest} products={products} purchaseHistory={purchaseHistory} priorities={priorities} onTogglePriority={onTogglePriority} onAdd={onAdd} onMarket={() => navigate("market")} catalogLoading={catalogLoading} /> : <>
+          {activeNavItem === "orders" && <CustomerOrdersPage accountName={accountName} isGuest={isGuest} purchaseHistory={purchaseHistory} order={order} onRefreshOrder={onRefreshOrder} onLogin={onLogin} onRegister={onRegister} demoMode={demoMode} />}
+          {activeNavItem === "profile" && <CustomerProfilePage account={account} isGuest={isGuest} priorities={priorities} onTogglePriority={onTogglePriority} onLogin={onLogin} onRegister={onRegister} onLogout={onLogout} questions={merchantQuestions} questionsLoading={merchantQuestionsLoading} questionsError={merchantQuestionsError} />}
+          {activeNavItem === "market" && <>
+            {!demoMode && <div className="backend-banner" role="status"><ShieldCheck size={16} /><span><strong>{isGuest ? "Browse without an account." : "Your account is connected."}</strong> Products and merchant offers are loaded from Supabase. {isGuest ? "Your basket stays on this device. Sign in to continue; checkout and payment are unavailable." : "Checkout and payment are not connected yet."}</span></div>}
+            <div className="welcome-row"><div><div className="eyebrow"><Sun size={14} /> Tuesday market, Masaka</div><h1>{isGuest ? "Browse today's market" : `Good morning, ${accountName}`}</h1></div><span className="account-role"><ShoppingBag size={14} /> {isGuest ? "Guest browsing" : "Consumer account"}</span></div>
+            <div className="market-layout">
+              <div className="main-column">
+                <section className="category-section"><div className="section-heading"><h2>Shop by category</h2><button className="text-button" type="button" onClick={() => setActiveCategory("All items")}>See all</button></div><CategoryPicker activeCategory={activeCategory} onChange={setActiveCategory} /></section>
+                <section id="products"><div className="section-heading products-heading"><div><h2>Fresh from Masaka</h2><p>Fair market prices, updated by verified traders today</p></div><select className="sort-select" value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort products"><option value="featured">Today's picks</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option></select></div>
+                  {catalogError && <div className="empty-state" role="alert">{catalogError}</div>}
+                  {catalogLoading ? <div className="empty-state" role="status">Loading products from Supabase...</div> : <div className="product-grid">{visibleProducts.map(product => { const quantityInCart = cart.find(line => line.productId === product.id)?.quantity || 0; const maxQuantity = Math.min(99, Number.isInteger(product.stock) ? product.stock : 99); return <ProductCard key={product.id} product={product} onAdd={onAdd} onAskQuestion={onAskQuestion} disabled={cartLoading || quantityInCart >= maxQuantity || (!quantityInCart && cart.length >= 100)} />; })}{visibleProducts.length === 0 && !catalogError && <div className="empty-state">No products match this search. Try another item or category.</div>}</div>}
+                </section>
+              </div>
+              {isGuest ? <aside className="side-column" aria-label="Your basket"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={onCheckout} onClear={onClearCart} isGuest cartLoading={cartLoading} /></aside> : demoMode ? <aside className="side-column" aria-label="Your Kasua account"><WalletPanel balance={walletBalance} notify={notify} /><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} /><DeliveryPanel order={order} onTrack={() => navigate("orders")} /><TrustPanel onVerify={onVerify} /><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside> : <aside className="side-column" aria-label="Account status"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} cartLoading={cartLoading} /><p className="account-intro">Your account is secure. Checkout and payment are not connected yet.</p><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside>}
+            </div>
+            <span className="sr-only">{cartCount} items in your basket</span>
+          </>}
+        </>}
       </div>
-      {isGuest ? <aside className="side-column" aria-label="Your basket"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={onCheckout} onClear={onClearCart} isGuest cartLoading={cartLoading} /></aside> : demoMode ? <aside className="side-column" aria-label="Your Kasua account"><WalletPanel balance={walletBalance} notify={notify} /><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} /><DeliveryPanel order={order} onTrack={() => navigate("orders")} /><TrustPanel onVerify={onVerify} /><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside> : <aside className="side-column" aria-label="Account status"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} cartLoading={cartLoading} /><p className="account-intro">Your account is secure. Checkout and payment are not connected yet.</p><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside>}
     </div>
-    <span className="sr-only">{cartCount} items in your basket</span>
-    </>}
-    </>}
+    <MobileBottomNav activeItem={activeNavItem} onNavigate={navigate} />
     {navDialog && <GuestNavDialog type={navDialog} onClose={() => setNavDialog(null)} onLogin={() => { setNavDialog(null); onLogin(); }} onRegister={() => { setNavDialog(null); onRegister(); }} />}
   </>;
 }
@@ -737,6 +761,8 @@ function MerchantView({
     { id: "inventory", label: "Inventory", icon: Package },
     { id: "questions", label: "Questions & support", icon: MessageCircle, count: questions.filter(question => question.status === "open").length },
     { id: "insights", label: "Insights & reports", icon: TrendingUp },
+    { id: "finances", label: "Financials", icon: Wallet },
+    { id: "credit-profile", label: "Credit profile", icon: ShieldCheck },
     { id: "payouts", label: "Sales & payouts", icon: Coins },
     { id: "profile", label: "Profile", icon: UserRound },
   ];
@@ -794,6 +820,8 @@ function MerchantView({
     </section>}
     {activeTab === "questions" && <MerchantQuestionsPanel questions={questions} loading={questionsLoading} error={questionsError} onAnswer={onAnswerQuestion} />}
     {activeTab === "insights" && <MerchantInsightsPanel insights={insights} loading={insightsLoading} error={insightsError} orders={orders} ordersLoading={ordersLoading} />}
+    {activeTab === "finances" && <MerchantFinancialDashboard demoMode={demoMode} accountName={account.name} />}
+    {activeTab === "credit-profile" && <MerchantCreditReadiness demoMode={demoMode} accountName={account.name} onOpenFinancials={() => setActiveTab("finances")} />}
     {activeTab === "payouts" && <MerchantPayouts payouts={payouts} loading={payoutsLoading} error={payoutsError} />}
     {activeTab === "profile" && <MerchantProfilePage account={account} onResubmit={onResubmit} />}
   </>;
@@ -1948,14 +1976,76 @@ export default function App() {
     if (entryPage === "admin" && demoMode) return <AdminView onExit={() => { window.history.replaceState(null, "", "/"); setEntryPage("landing"); }} isDemo />;
     return <div className="app-shell" id="top">
       <Header search={search} setSearch={setSearch} cartCount={cart.reduce((sum, line) => sum + line.quantity, 0)} walletBalance={walletBalance} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={null} onLogout={() => {}} demoMode={demoMode} isGuest onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} />
-      <ShopView products={products} cart={cart} onAdd={addToCart} onAskQuestion={openMerchantQuestion} onQuantity={changeQuantity} onCheckout={() => openCheckout(null)} onClearCart={() => setCart([])} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} supportCases={[]} order={order} account={null} accountName="Guest" onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={() => {}} onRefreshOrder={refreshOrder} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} isGuest catalogLoading={catalogLoading} catalogError={catalogError} />
+      <main className="customer-main"><ShopView products={products} cart={cart} onAdd={addToCart} onAskQuestion={openMerchantQuestion} onQuantity={changeQuantity} onCheckout={() => openCheckout(null)} onClearCart={() => setCart([])} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} supportCases={[]} order={order} account={null} accountName="Guest" onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={() => {}} onRefreshOrder={refreshOrder} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} isGuest catalogLoading={catalogLoading} catalogError={catalogError} /></main>
       <Toast message={toast} />
     </div>;
   }
   if (account.staffRoles?.length) return <AdminView account={account} onExit={logout} />;
   return <div className="app-shell" id="top">
     <Header search={search} setSearch={setSearch} cartCount={cartCount} walletBalance={walletBalance} onWallet={() => document.getElementById("wallet")?.scrollIntoView({ behavior: "smooth", block: "center" })} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={account} onLogout={logout} demoMode={demoMode} />
-    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onAskQuestion={openMerchantQuestion} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} merchantQuestions={demoMode || customerQuestionsOwner === account.id ? customerMerchantQuestions : []} merchantQuestionsLoading={customerQuestionsLoading} merchantQuestionsError={customerQuestionsError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }} onVerify={() => setDialog("verification")} onResubmit={resubmitMerchantApplication} account={account} demoMode={demoMode} inventoryLoading={inventoryLoading} inventoryError={inventoryError} orders={demoMode || merchantOrdersOwner === account.id ? merchantOrders : []} payouts={demoMode || merchantPayoutsOwner === account.id ? merchantPayouts : []} insights={demoMode || merchantInsightsOwner === account.id ? merchantInsights : []} insightsLoading={merchantInsightsLoading} insightsError={merchantInsightsError} questions={demoMode || merchantQuestionsOwner === account.id ? merchantQuestions : []} questionsLoading={merchantQuestionsLoading} questionsError={merchantQuestionsError} onAnswerQuestion={replyToMerchantQuestion} ordersLoading={merchantOrdersLoading} payoutsLoading={merchantPayoutsLoading} ordersError={merchantOrdersError} payoutsError={merchantPayoutsError} onUpdateOrder={changeMerchantOrderStatus} onRefreshOrders={refreshMerchantOrderList} />}</main>
+    <main className={account.role === "consumer" ? "customer-main" : ""}>
+      {account.role === "consumer" ? <ShopView
+        products={products}
+        cart={cart}
+        onAdd={addToCart}
+        onAskQuestion={openMerchantQuestion}
+        onQuantity={changeQuantity}
+        onCheckout={openCheckout}
+        onClearCart={() => { setCart([]); notify("Basket cleared"); }}
+        walletBalance={walletBalance}
+        notify={notify}
+        search={search}
+        activeCategory={activeCategory}
+        setActiveCategory={setActiveCategory}
+        sort={sort}
+        setSort={setSort}
+        order={order}
+        account={account}
+        accountName={account.name}
+        onVerify={() => setDialog("verification")}
+        onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")}
+        onLogin={() => setEntryPage("login")}
+        onRegister={() => setEntryPage("register")}
+        onLogout={logout}
+        onRefreshOrder={refreshOrder}
+        supportCases={supportCases}
+        purchaseHistory={purchaseHistory}
+        priorities={customerPriorities}
+        onTogglePriority={toggleCustomerPriority}
+        demoMode={demoMode}
+        cartLoading={cartLoading}
+        catalogLoading={catalogLoading}
+        catalogError={catalogError}
+        merchantQuestions={demoMode || customerQuestionsOwner === account.id ? customerMerchantQuestions : []}
+        merchantQuestionsLoading={customerQuestionsLoading}
+        merchantQuestionsError={customerQuestionsError}
+      /> : <MerchantView
+        inventory={inventory}
+        onAddProduct={productHandler}
+        onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }}
+        onVerify={() => setDialog("verification")}
+        onResubmit={resubmitMerchantApplication}
+        account={account}
+        demoMode={demoMode}
+        inventoryLoading={inventoryLoading}
+        inventoryError={inventoryError}
+        orders={demoMode || merchantOrdersOwner === account.id ? merchantOrders : []}
+        payouts={demoMode || merchantPayoutsOwner === account.id ? merchantPayouts : []}
+        insights={demoMode || merchantInsightsOwner === account.id ? merchantInsights : []}
+        insightsLoading={merchantInsightsLoading}
+        insightsError={merchantInsightsError}
+        questions={demoMode || merchantQuestionsOwner === account.id ? merchantQuestions : []}
+        questionsLoading={merchantQuestionsLoading}
+        questionsError={merchantQuestionsError}
+        onAnswerQuestion={replyToMerchantQuestion}
+        ordersLoading={merchantOrdersLoading}
+        payoutsLoading={merchantPayoutsLoading}
+        ordersError={merchantOrdersError}
+        payoutsError={merchantPayoutsError}
+        onUpdateOrder={changeMerchantOrderStatus}
+        onRefreshOrders={refreshMerchantOrderList}
+      />}
+    </main>
     {dialog === "checkout" && checkoutTotals && <CheckoutDialog totals={checkoutTotals} walletBalance={walletBalance} onClose={() => setDialog(null)} onPlaceOrder={placeOrder} />}
     {dialog === "askQuestion" && questionProduct && <MerchantQuestionDialog product={questionProduct} onClose={() => { setDialog(null); setQuestionProduct(null); }} onSubmit={submitMerchantQuestion} />}
     {dialog === "addProduct" && <ProductDialog key={editingProduct?.id || "new-product"} onClose={() => { setDialog(null); setEditingProduct(null); }} onSave={saveProduct} initialProduct={editingProduct} demoMode={demoMode} />}
