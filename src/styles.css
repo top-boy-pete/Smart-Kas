@@ -255,6 +255,18 @@ h1 { margin: 4px 0 0; font: 700 26px/1.2 "Manrope", sans-serif; letter-spacing: 
 .merchant-banner h2 { margin: 7px 0 5px; font: 700 25px "Manrope", sans-serif; }
 .merchant-banner p { margin: 0; color: rgba(255, 255, 255, .78); font-size: 12px; }
 .merchant-banner .primary-button { flex: 0 0 auto; }
+.merchant-verification-notice { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 12px 14px; border: 1px solid #f1d9a8; border-radius: 6px; background: #fff9ec; color: #76591e; font-size: 11px; line-height: 1.5; }
+.merchant-verification-notice > svg { flex: 0 0 auto; }
+.merchant-verification-notice > span { flex: 1; }
+.merchant-verification-notice strong { color: #684d18; }
+.merchant-verification-notice .text-button { flex: 0 0 auto; color: #705817; }
+.merchant-role-pending { border-color: #f1d9a8; background: #fff9ec; color: #76591e; }
+.merchant-profile-page { width: 100%; }
+.merchant-profile-card > h2 { margin: 8px 0 5px; font: 800 18px/1.3 "Manrope", sans-serif; }
+.merchant-profile-card > .account-intro { margin: 0; }
+.merchant-profile-page .merchant-account-panel { width: auto; }
+.merchant-profile-page .profile-details { padding-top: 15px; }
+.merchant-status-pending { background: #fff3dc; color: #856128; }
 .merchant-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
 .stat-card { min-width: 0; padding: 17px; border: 1px solid var(--line); border-radius: 6px; background: white; }
 .stat-card > span { color: var(--muted); font-size: 11px; }

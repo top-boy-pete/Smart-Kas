@@ -377,7 +377,7 @@ function StaffLoginPage({ onLogin, onHome }) {
   </div>;
 }
 
-function MerchantApplicationStatus({ account, onLogout, onResubmit }) {
+function MerchantProfilePage({ account, onResubmit }) {
   const [application, setApplication] = useState(account.application || {});
   const [identityDocumentType, setIdentityDocumentType] = useState(account.application?.identityDocumentType || "national_id");
   const [businessEvidenceType, setBusinessEvidenceType] = useState(account.application?.businessEvidenceType || "market_permit");
@@ -388,7 +388,8 @@ function MerchantApplicationStatus({ account, onLogout, onResubmit }) {
   const [error, setError] = useState("");
   const needsChanges = account.verificationStatus === "needs_changes";
   const rejected = account.verificationStatus === "rejected";
-  const incomplete = !account.application && !rejected;
+  const verified = account.verificationStatus === "verified";
+  const incomplete = !account.application && !rejected && !verified;
   const canEdit = !demoMode && !rejected && (needsChanges || incomplete);
   async function submit(event) {
     event.preventDefault();
@@ -416,14 +417,13 @@ function MerchantApplicationStatus({ account, onLogout, onResubmit }) {
       setBusy(false);
     }
   }
-  return <div className="auth-page" id="top">
-    <AuthHeader />
-    <main className="account-gate">
-    <section className="account-panel application-status merchant-account-panel">
-      <div className="eyebrow"><ScanEye size={14} /> Merchant onboarding dashboard</div>
-      <h1>{needsChanges ? "Action needed" : rejected ? "Application not approved" : incomplete ? "Complete your application" : "Verification in progress"}</h1>
-      <p className="account-intro">Hi {account.name}, {account.application?.stall ? <>your application for <strong>{account.application.stall}</strong> at {account.application.market} is saved.</> : "your merchant application needs to be completed."} Selling tools stay locked until all verification checks are complete.</p>
-      <div className={`onboarding-status-banner ${needsChanges || incomplete ? "attention" : rejected ? "rejected" : "pending"}`} role="status"><span>{needsChanges ? "Changes requested" : rejected ? "Not approved" : incomplete ? "Onboarding incomplete" : "Under review"}</span><small>{account.application?.submittedAt ? `Submitted ${new Date(account.application.submittedAt).toLocaleDateString()}` : incomplete ? "Complete the required details, evidence, and policy acceptance below." : "We will update your status when review is complete."}</small></div>
+  return <section className="customer-page merchant-profile-page application-status" aria-labelledby="merchant-profile-title">
+    <div className="customer-page-heading"><div><span className="eyebrow"><UserRound size={14} /> Merchant account</span><h1 id="merchant-profile-title">Your profile</h1><p>Manage your account, verification status, and merchant setup.</p></div></div>
+    <section className="customer-page-card merchant-profile-card">
+      <div className="eyebrow"><ScanEye size={14} /> Merchant verification</div>
+      <h2>{needsChanges ? "Action needed" : rejected ? "Application not approved" : incomplete ? "Complete your application" : verified ? "Verification complete" : "Verification in progress"}</h2>
+      <p className="account-intro">Hi {account.name}, {account.application?.stall ? <>your application for <strong>{account.application.stall}</strong> at {account.application.market} is saved.</> : incomplete ? "your merchant application needs to be completed." : "your merchant account is ready to use."} {!verified && "Selling tools unlock after verification is complete."}</p>
+      <div className={`onboarding-status-banner ${needsChanges || incomplete ? "attention" : rejected ? "rejected" : "pending"}`} role="status"><span>{needsChanges ? "Changes requested" : rejected ? "Not approved" : incomplete ? "Onboarding incomplete" : verified ? "Verified and active" : "Under review"}</span><small>{account.application?.submittedAt ? `Submitted ${new Date(account.application.submittedAt).toLocaleDateString()}` : incomplete ? "Complete the required details, evidence, and policy acceptance below." : verified ? "Your merchant selling tools are enabled." : "We will update your status when review is complete."}</small></div>
       {needsChanges && <div className="onboarding-feedback"><strong>Reviewer feedback</strong><p>{account.reviewFeedback || "Please review and update the application details and evidence."}</p></div>}
       <div className="onboarding-dashboard-grid">
         <section className="onboarding-dashboard-card"><div className="onboarding-dashboard-card-title"><UserRound size={16} /><h2>Identity verification</h2></div><strong>{account.application?.identityDocumentType?.replaceAll("_", " ") || "Document needed"}</strong><span>{account.application?.identityDocumentPath ? "Private document received" : demoMode && account.application?.identityFileName ? `${account.application.identityFileName} · preview metadata only` : "No document submitted"}</span></section>
@@ -448,10 +448,12 @@ function MerchantApplicationStatus({ account, onLogout, onResubmit }) {
       {needsChanges && demoMode && <p className="demo-safety-notice"><ShieldAlert size={16} /> Preview applications cannot be resubmitted. Use dummy data only; document verification requires a connected private Supabase project.</p>}
       {rejected && <p className="fine-print">If you believe this decision is incorrect, contact Kasua support. You cannot resubmit a rejected application from this screen.</p>}
       <p className="fine-print">{demoMode ? "Preview mode does not securely store documents or verify identity. Use dummy data only." : "Your evidence is stored in a private bucket. Access is limited to your account and authorized merchant reviewers."}</p>
-      <button className="secondary-button wide-button" type="button" onClick={onLogout}>Sign out</button>
     </section>
-    </main>
-  </div>;
+    <section className="customer-page-card customer-profile-card">
+      <div className="profile-summary"><span className="profile-avatar">{account.name.slice(0, 1).toUpperCase()}</span><div><h2>{account.name}</h2><p>Merchant account</p></div><span className={`verified-profile ${verified ? "" : "merchant-status-pending"}`}>{verified ? <ShieldCheck size={14} /> : <Clock3 size={14} />}{verified ? "Verified" : "Not verified"}</span></div>
+      <div className="profile-details">{account.email && <div><span>Email address</span><strong>{account.email}</strong></div>}{account.phone && <div><span>Phone number</span><strong>{account.phone}</strong></div>}{account.application?.stall && <div><span>Business or stall</span><strong>{account.application.stall}</strong></div>}<div><span>Account type</span><strong>Merchant</strong></div></div>
+    </section>
+  </section>;
 }
 
 function MerchantPolicyAcceptance({ checked, onChange, disabled = false }) {
@@ -710,13 +712,16 @@ function ShopView({ products, cart, onAdd, onAskQuestion, onQuantity, onCheckout
 }
 
 function MerchantView({
-  inventory, onAddProduct, onEditProduct, onVerify, account, demoMode,
+  inventory, onAddProduct, onEditProduct, onVerify, onResubmit, account, demoMode,
   inventoryLoading, inventoryError, orders, payouts, ordersLoading, payoutsLoading,
   ordersError, payoutsError, insights, insightsLoading, insightsError,
   questions, questionsLoading, questionsError, onAnswerQuestion,
   onUpdateOrder, onRefreshOrders,
 }) {
   const [activeTab, setActiveTab] = useState("overview");
+  const isVerified = account.verificationStatus === "verified";
+  const isRejected = account.verificationStatus === "rejected";
+  const needsChanges = account.verificationStatus === "needs_changes";
   const pendingOrders = orders.filter(order => order.status === "awaiting_merchant");
   const grossSales = orders
     .filter(order => !["rejected", "cancelled"].includes(order.status))
@@ -733,33 +738,36 @@ function MerchantView({
     { id: "questions", label: "Questions & support", icon: MessageCircle, count: questions.filter(question => question.status === "open").length },
     { id: "insights", label: "Insights & reports", icon: TrendingUp },
     { id: "payouts", label: "Sales & payouts", icon: Coins },
+    { id: "profile", label: "Profile", icon: UserRound },
   ];
+  const visibleTabs = isVerified ? tabs : tabs.filter(tab => ["overview", "profile"].includes(tab.id));
 
   return <>
     <div className="welcome-row merchant-welcome">
       <div><div className="eyebrow"><Sun size={14} /> Trader workspace · Masaka</div><h1>Good morning, {account.name}</h1></div>
-      <span className="account-role"><Store size={14} /> Verified merchant</span>
+      <span className={`account-role ${isVerified ? "" : "merchant-role-pending"}`}><Store size={14} /> {isVerified ? "Verified merchant" : isRejected ? "Merchant · not approved" : needsChanges ? "Merchant · changes needed" : "Merchant · verification pending"}</span>
     </div>
     <section className="merchant-banner">
-      <div><div className="hero-kicker"><BadgeCheck size={14} /> Trader workspace</div><h2>Your stall, reaching all of Masaka.</h2><p>Manage orders, prepare hub handoffs, and keep track of your sales.</p></div>
-      <button className="primary-button" type="button" onClick={onAddProduct}><Plus size={15} /> Add a product</button>
+      <div><div className="hero-kicker"><BadgeCheck size={14} /> Trader workspace</div><h2>{isVerified ? "Your stall, reaching all of Masaka." : "Welcome to your merchant marketplace."}</h2><p>{isVerified ? "Manage orders, prepare hub handoffs, and keep track of your sales." : "Explore your workspace now. Complete verification in Profile to unlock selling tools."}</p></div>
+      <button className="primary-button" type="button" onClick={isVerified ? onAddProduct : () => setActiveTab("profile")}><Plus size={15} /> {isVerified ? "Add a product" : "View profile setup"}</button>
     </section>
+    {!isVerified && <div className="merchant-verification-notice" role="status"><Clock3 size={16} /><span><strong>{isRejected ? "Your application was not approved." : needsChanges ? "Changes are needed to your application." : "Verification is still in progress."}</strong> You can access your marketplace workspace; product listings, orders, and payouts will be available once your account is approved.</span><button className="text-button" type="button" onClick={() => setActiveTab("profile")}>{needsChanges || isRejected ? "View application" : "Check status"} <ArrowRight size={13} /></button></div>}
     {demoMode && <p className="merchant-demo-note merchant-demo-wide">Preview only: order and payout records are examples. Actions and product changes are not sent to a payment provider or saved to a live marketplace.</p>}
-    <div className="merchant-stats">
+    {isVerified && <div className="merchant-stats">
       <StatCard label="Paid order value" value={ordersLoading ? "…" : formatNaira(grossSales)} detail="Gross value of eligible orders" />
       <StatCard label="Needs your attention" value={ordersLoading ? "…" : pendingOrders.length} detail="Awaiting your acceptance" />
       <StatCard label="In fulfillment" value={ordersLoading ? "…" : inProgressOrders} detail="Accepted orders in progress" />
       <StatCard label="Paid out" value={payoutsLoading ? "…" : formatNaira(paidOut)} detail="Recorded completed payouts" />
       <StatCard label="Listed products" value={inventoryLoading ? "…" : inventory.length} detail={`${categoriesCount} categories`} />
-    </div>
+    </div>}
     <nav className="merchant-tabs" aria-label="Merchant dashboard sections">
-      {tabs.map(({ id, label, icon: Icon, count }) => <button key={id} type="button" className={`merchant-tab ${activeTab === id ? "active" : ""}`} aria-current={activeTab === id ? "page" : undefined} onClick={() => setActiveTab(id)}>
+      {visibleTabs.map(({ id, label, icon: Icon, count }) => <button key={id} type="button" className={`merchant-tab ${activeTab === id ? "active" : ""}`} aria-current={activeTab === id ? "page" : undefined} onClick={() => setActiveTab(id)}>
         <Icon size={16} /><span>{label}</span>{count > 0 && <span className="merchant-tab-count">{count}</span>}
       </button>)}
-      <button className="merchant-refresh" type="button" onClick={onRefreshOrders} disabled={ordersLoading} aria-label="Refresh orders"><RefreshCw size={15} /> Refresh</button>
+      {isVerified && <button className="merchant-refresh" type="button" onClick={onRefreshOrders} disabled={ordersLoading} aria-label="Refresh orders"><RefreshCw size={15} /> Refresh</button>}
     </nav>
     {ordersError && <p className="form-error merchant-workspace-error" role="alert">{ordersError}</p>}
-    {activeTab === "overview" && <div className="merchant-dashboard-grid">
+    {activeTab === "overview" && isVerified && <div className="merchant-dashboard-grid">
       <section className="side-panel merchant-dashboard-section">
         <div className="side-panel-header"><div><h2>Orders requiring action</h2><span className="subheading">New paid orders appear here automatically</span></div><button type="button" className="text-button" onClick={() => setActiveTab("orders")}>All orders <ArrowRight size={13} /></button></div>
         {pendingOrders.length > 0 && <div className="merchant-notification"><Bell size={16} /><span><strong>{pendingOrders.length} new order{pendingOrders.length === 1 ? "" : "s"}</strong> ready for your review.</span></div>}
@@ -787,6 +795,7 @@ function MerchantView({
     {activeTab === "questions" && <MerchantQuestionsPanel questions={questions} loading={questionsLoading} error={questionsError} onAnswer={onAnswerQuestion} />}
     {activeTab === "insights" && <MerchantInsightsPanel insights={insights} loading={insightsLoading} error={insightsError} orders={orders} ordersLoading={ordersLoading} />}
     {activeTab === "payouts" && <MerchantPayouts payouts={payouts} loading={payoutsLoading} error={payoutsError} />}
+    {activeTab === "profile" && <MerchantProfilePage account={account} onResubmit={onResubmit} />}
   </>;
 }
 
@@ -1588,6 +1597,9 @@ export default function App() {
     }
   }
   async function saveProduct(form, existingProduct) {
+    if (account.role !== "merchant" || account.verificationStatus !== "verified") {
+      throw new Error("Merchant verification must be complete before you can list products.");
+    }
     if (!demoMode) {
       const savedProduct = await saveMerchantProduct(account.id, form, existingProduct);
       setDialog(null);
@@ -1941,11 +1953,9 @@ export default function App() {
     </div>;
   }
   if (account.staffRoles?.length) return <AdminView account={account} onExit={logout} />;
-  if (account.role === "merchant" && account.verificationStatus !== "verified") return <MerchantApplicationStatus account={account} onLogout={logout} onResubmit={resubmitMerchantApplication} />;
-
   return <div className="app-shell" id="top">
     <Header search={search} setSearch={setSearch} cartCount={cartCount} walletBalance={walletBalance} onWallet={() => document.getElementById("wallet")?.scrollIntoView({ behavior: "smooth", block: "center" })} onCart={() => document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "center" })} account={account} onLogout={logout} demoMode={demoMode} />
-    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onAskQuestion={openMerchantQuestion} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} merchantQuestions={demoMode || customerQuestionsOwner === account.id ? customerMerchantQuestions : []} merchantQuestionsLoading={customerQuestionsLoading} merchantQuestionsError={customerQuestionsError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }} onVerify={() => setDialog("verification")} account={account} demoMode={demoMode} inventoryLoading={inventoryLoading} inventoryError={inventoryError} orders={demoMode || merchantOrdersOwner === account.id ? merchantOrders : []} payouts={demoMode || merchantPayoutsOwner === account.id ? merchantPayouts : []} insights={demoMode || merchantInsightsOwner === account.id ? merchantInsights : []} insightsLoading={merchantInsightsLoading} insightsError={merchantInsightsError} questions={demoMode || merchantQuestionsOwner === account.id ? merchantQuestions : []} questionsLoading={merchantQuestionsLoading} questionsError={merchantQuestionsError} onAnswerQuestion={replyToMerchantQuestion} ordersLoading={merchantOrdersLoading} payoutsLoading={merchantPayoutsLoading} ordersError={merchantOrdersError} payoutsError={merchantPayoutsError} onUpdateOrder={changeMerchantOrderStatus} onRefreshOrders={refreshMerchantOrderList} />}</main>
+    <main>{account.role === "consumer" ? <ShopView products={products} cart={cart} onAdd={addToCart} onAskQuestion={openMerchantQuestion} onQuantity={changeQuantity} onCheckout={openCheckout} onClearCart={() => { setCart([]); notify("Basket cleared"); }} walletBalance={walletBalance} notify={notify} search={search} activeCategory={activeCategory} setActiveCategory={setActiveCategory} sort={sort} setSort={setSort} order={order} account={account} accountName={account.name} onVerify={() => setDialog("verification")} onComplaint={() => demoMode ? notify("Support cases are available when the backend is connected.") : setDialog("complaint")} onLogin={() => setEntryPage("login")} onRegister={() => setEntryPage("register")} onLogout={logout} onRefreshOrder={refreshOrder} supportCases={supportCases} purchaseHistory={purchaseHistory} priorities={customerPriorities} onTogglePriority={toggleCustomerPriority} demoMode={demoMode} cartLoading={cartLoading} catalogLoading={catalogLoading} catalogError={catalogError} merchantQuestions={demoMode || customerQuestionsOwner === account.id ? customerMerchantQuestions : []} merchantQuestionsLoading={customerQuestionsLoading} merchantQuestionsError={customerQuestionsError} /> : <MerchantView inventory={inventory} onAddProduct={productHandler} onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }} onVerify={() => setDialog("verification")} onResubmit={resubmitMerchantApplication} account={account} demoMode={demoMode} inventoryLoading={inventoryLoading} inventoryError={inventoryError} orders={demoMode || merchantOrdersOwner === account.id ? merchantOrders : []} payouts={demoMode || merchantPayoutsOwner === account.id ? merchantPayouts : []} insights={demoMode || merchantInsightsOwner === account.id ? merchantInsights : []} insightsLoading={merchantInsightsLoading} insightsError={merchantInsightsError} questions={demoMode || merchantQuestionsOwner === account.id ? merchantQuestions : []} questionsLoading={merchantQuestionsLoading} questionsError={merchantQuestionsError} onAnswerQuestion={replyToMerchantQuestion} ordersLoading={merchantOrdersLoading} payoutsLoading={merchantPayoutsLoading} ordersError={merchantOrdersError} payoutsError={merchantPayoutsError} onUpdateOrder={changeMerchantOrderStatus} onRefreshOrders={refreshMerchantOrderList} />}</main>
     {dialog === "checkout" && checkoutTotals && <CheckoutDialog totals={checkoutTotals} walletBalance={walletBalance} onClose={() => setDialog(null)} onPlaceOrder={placeOrder} />}
     {dialog === "askQuestion" && questionProduct && <MerchantQuestionDialog product={questionProduct} onClose={() => { setDialog(null); setQuestionProduct(null); }} onSubmit={submitMerchantQuestion} />}
     {dialog === "addProduct" && <ProductDialog key={editingProduct?.id || "new-product"} onClose={() => { setDialog(null); setEditingProduct(null); }} onSave={saveProduct} initialProduct={editingProduct} demoMode={demoMode} />}
