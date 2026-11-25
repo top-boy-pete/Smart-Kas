@@ -24,6 +24,7 @@ import {
   answerMerchantQuestion, askMerchantQuestion, loadCustomerMerchantQuestions,
   loadMerchantInsights, loadMerchantQuestions,
 } from "./lib/merchant-insights.js";
+import MerchantFinancialDashboard from "./MerchantFinancialDashboard.jsx";
 import {
   MERCHANT_DOCUMENT_MAX_BYTES, MERCHANT_POLICY_VERSION,
   removeMerchantDocuments, uploadMerchantDocuments, validateMerchantDocuments,
@@ -754,6 +755,7 @@ function MerchantView({
     { id: "inventory", label: "Inventory", icon: Package },
     { id: "questions", label: "Questions & support", icon: MessageCircle, count: questions.filter(question => question.status === "open").length },
     { id: "insights", label: "Insights & reports", icon: TrendingUp },
+    { id: "finances", label: "Financials", icon: Wallet },
     { id: "payouts", label: "Sales & payouts", icon: Coins },
   ];
 
@@ -808,6 +810,7 @@ function MerchantView({
     </section>}
     {activeTab === "questions" && <MerchantQuestionsPanel questions={questions} loading={questionsLoading} error={questionsError} onAnswer={onAnswerQuestion} />}
     {activeTab === "insights" && <MerchantInsightsPanel insights={insights} loading={insightsLoading} error={insightsError} orders={orders} ordersLoading={ordersLoading} />}
+    {activeTab === "finances" && <MerchantFinancialDashboard demoMode={demoMode} />}
     {activeTab === "payouts" && <MerchantPayouts payouts={payouts} loading={payoutsLoading} error={payoutsError} />}
   </>;
 }
