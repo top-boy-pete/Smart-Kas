@@ -95,7 +95,7 @@ Develop a customer-facing marketplace that supports:
 - Notifications about order progress.
 
 The application must clearly communicate product availability,
-merchant identity, applicable fees, delivery expectations, and
+merchant identity, fixed applicable fees, delivery expectations, and
 relevant return conditions.
 
 --------------------------------------------------
