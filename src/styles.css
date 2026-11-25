@@ -438,6 +438,58 @@ h1 { margin: 4px 0 0; font: 700 26px/1.2 "Manrope", sans-serif; letter-spacing: 
 .merchant-document-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 20px 18px; }
 .merchant-document-actions .primary-button, .merchant-document-actions .secondary-button { min-height: 35px; font-size: 10px; }
 .merchant-document-error { margin-right: auto; color: #a64c38; font-size: 10px; }
+.merchant-credit-page { display: grid; gap: 14px; }
+.merchant-credit-header-panel, .merchant-credit-history-panel, .merchant-credit-guidance { min-width: 0; overflow: hidden; }
+.merchant-credit-heading { align-items: flex-start; }
+.merchant-credit-heading h2 { display: flex; align-items: center; gap: 7px; }
+.merchant-credit-heading h2 svg { color: var(--green); }
+.merchant-credit-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.merchant-credit-actions button { min-height: 34px; padding-inline: 10px; font-size: 10px; }
+.merchant-credit-actions .secondary-button { display: inline-flex; align-items: center; gap: 6px; }
+.merchant-credit-demo-note { margin: 12px 15px 0; border: 1px solid #f1e3be; border-radius: 4px; }
+.merchant-credit-loading { padding: 18px 15px; }
+.merchant-credit-period { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 7px; margin: 12px 15px 0; color: var(--muted); font-size: 10px; }
+.merchant-credit-period strong { color: var(--green-dark); }
+.merchant-credit-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 9px; margin: 12px 15px 15px; }
+.merchant-credit-metrics .stat-card { padding: 12px; }
+.merchant-credit-metrics .stat-card strong { font-size: 17px; }
+.merchant-credit-metrics .stat-card small { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; font-weight: 500; line-height: 1.4; }
+.merchant-credit-history-panel > .side-panel-header { align-items: flex-start; }
+.merchant-credit-history-panel .subheading { display: block; margin-top: 4px; }
+.merchant-credit-sales-chart { min-height: 170px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; gap: 10px; padding: 17px 15px 12px; }
+.merchant-credit-sales-month { min-width: 0; height: 140px; display: grid; grid-template-rows: 18px 1fr 16px; justify-items: center; gap: 4px; }
+.merchant-credit-sales-month > span { width: 100%; overflow: hidden; color: var(--muted); font-size: 8px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.merchant-credit-sales-track { width: min(100%, 38px); height: 100%; display: flex; align-items: flex-end; overflow: hidden; border-radius: 4px 4px 0 0; background: #f2f5ef; }
+.merchant-credit-sales-track i { width: 100%; min-height: 2px; display: block; border-radius: 4px 4px 0 0; background: var(--green); }
+.merchant-credit-sales-month small { color: var(--muted); font-size: 8px; white-space: nowrap; }
+.merchant-credit-history-table { min-width: 940px; }
+.merchant-credit-history-table th, .merchant-credit-history-table td { white-space: nowrap; }
+.merchant-credit-guidance-content { padding: 13px 15px 15px; }
+.merchant-credit-guidance-content p { margin: 0 0 9px; color: #566359; font-size: 10px; line-height: 1.55; }
+.merchant-credit-guidance-content p:last-of-type { margin-bottom: 10px; }
+.merchant-credit-consent-dialog { width: min(540px, 100%); }
+.merchant-credit-consent-body { padding: 16px 20px 20px; }
+.merchant-credit-consent-body > p { margin: 0 0 10px; color: #566359; font-size: 11px; line-height: 1.5; }
+.merchant-credit-consent-body ul { display: grid; gap: 6px; margin: 0 0 13px; padding-left: 19px; color: #3e4d42; font-size: 11px; line-height: 1.45; }
+.merchant-credit-consent-limit { padding: 10px; border-radius: 4px; background: #f5f8f2; }
+.merchant-credit-consent-body .consent-row { margin: 12px 0; }
+.merchant-credit-consent-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid #eef1eb; }
+.merchant-credit-consent-actions button { min-height: 36px; font-size: 10px; }
+.merchant-credit-consent-actions .primary-button { display: inline-flex; align-items: center; gap: 6px; }
+.merchant-credit-print-page { display: none; }
+.merchant-credit-print-brand { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--green); }
+.merchant-credit-print-brand strong { color: var(--green-dark); font: 800 17px "Manrope", sans-serif; letter-spacing: 1.4px; }
+.merchant-credit-print-brand span { color: var(--muted); font-size: 10px; }
+.merchant-credit-print-page h1 { margin: 20px 0 5px; font: 700 22px "Manrope", sans-serif; }
+.merchant-credit-print-period { margin: 0 0 17px; color: var(--muted); font-size: 10px; }
+.merchant-credit-print-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
+.merchant-credit-print-summary > div { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); border-radius: 4px; }
+.merchant-credit-print-summary span { color: var(--muted); font-size: 9px; }
+.merchant-credit-print-summary strong { font-size: 12px; }
+.merchant-credit-print-table { width: 100%; border-collapse: collapse; }
+.merchant-credit-print-table th, .merchant-credit-print-table td { padding: 7px 5px; border-bottom: 1px solid #e8ece6; text-align: left; font-size: 8px; }
+.merchant-credit-print-table th { color: var(--muted); font-size: 7px; text-transform: uppercase; }
+.merchant-credit-print-note { margin-top: 17px; color: #566359; font-size: 8px; line-height: 1.5; }
 .product-question-button { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; padding: 0; border: 0; background: transparent; color: var(--green-dark); font-size: 10px; font-weight: 750; cursor: pointer; }
 .product-question-button:hover { text-decoration: underline; text-underline-offset: 3px; }
 .merchant-question-dialog > p:first-child { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -817,6 +869,18 @@ main.landing-page { padding: 0; }
   .merchant-document-items { min-width: 520px; }
   .merchant-document-actions { align-items: stretch; flex-wrap: wrap; padding-inline: 14px; }
   .merchant-document-error { width: 100%; margin-right: 0; }
+  .merchant-credit-heading { flex-direction: column; align-items: stretch; }
+  .merchant-credit-actions { justify-content: flex-start; }
+  .merchant-credit-actions button { flex: 1; }
+  .merchant-credit-demo-note { margin-inline: 11px; }
+  .merchant-credit-period { margin-inline: 11px; }
+  .merchant-credit-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-inline: 11px; }
+  .merchant-credit-metrics .stat-card { padding: 10px; }
+  .merchant-credit-metrics .stat-card strong { font-size: 15px; }
+  .merchant-credit-sales-chart { gap: 5px; padding-inline: 10px; }
+  .merchant-credit-sales-month > span { font-size: 7px; }
+  .merchant-credit-consent-body { padding-inline: 14px; }
+  .merchant-credit-consent-actions { align-items: stretch; flex-direction: column-reverse; }
   .inventory-wrap { overflow-x: auto; }
   .inventory-table { min-width: 760px; }
   .sort-select { max-width: 138px; }
@@ -836,6 +900,9 @@ main.landing-page { padding: 0; }
   .merchant-document-dialog > .modal-header, .merchant-document-actions { display: none !important; }
   .merchant-document-page { position: fixed; inset: 0; margin: 0; padding: 0; box-shadow: none; }
   .merchant-document-items, .merchant-document-items th, .merchant-document-items td { min-width: 0 !important; }
+  .merchant-credit-print-page, .merchant-credit-print-page * { visibility: visible !important; }
+  .merchant-credit-print-page { position: fixed; inset: 0; display: block !important; margin: 0; padding: 0; background: white; color: #1d2b21; }
+  .merchant-credit-print-table th, .merchant-credit-print-table td { min-width: 0 !important; }
 }
 .admin-app { min-height: 100vh; color: var(--ink); background: #f3f6f1; font-size: 13px; }
 .admin-topbar { position: sticky; z-index: 30; top: 0; min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 7px 24px; background: #080b09; color: white; }

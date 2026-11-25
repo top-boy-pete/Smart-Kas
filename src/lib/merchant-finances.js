@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { normalizeCreditReadinessProfile } from "./merchant-credit-profile-utils.js";
 
 export {
   buildFinancialStatementCsv, getFinancialDateRange, getNigeriaDateKey,
@@ -87,4 +88,10 @@ export async function loadMerchantFinancialOrderItems(suborderId) {
     unitPrice: Number(item.unit_price_minor_units) / 100,
     total: Number(item.line_total_minor_units) / 100,
   }));
+}
+
+export async function loadMerchantCreditReadinessProfile() {
+  const { data, error } = await requireSupabase().rpc("merchant_get_own_credit_readiness_profile");
+  if (error) throw error;
+  return normalizeCreditReadinessProfile(data);
 }
