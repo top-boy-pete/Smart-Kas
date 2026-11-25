@@ -41,7 +41,7 @@ Status key: checked items are implemented in the app; some require backend migra
 - [x] New paid-order notifications, merchant acceptance, preparation, and hub handoff status updates (requires `20261112000100_merchant_orders_and_payouts.sql`; live order creation is still a separate backend dependency).
 - [x] Delivery area/landmark visibility and merchant hub-handoff notes; [ ] rider assignment and final delivery coordination.
 - [ ] Three-tier merchant ranking with published eligibility rules.
-- [x] Merchant financial dashboard with daily/weekly/monthly paid-sales summaries, transaction history, merchant-entered operating expenses, estimated profit/cash flow, and downloadable CSV statements (requires `20261125000100_merchant_financial_dashboard.sql`; estimates depend on recorded orders, refunds, payouts, and costs); [ ] payout execution and reconciliation.
+- [x] Merchant financial dashboard and digital ledger with daily/weekly/monthly marketplace activity, expenses, supplier payments, other income/outgoings, estimated profit/cash flow, printable sales invoices/receipts, and downloadable CSV transaction statements (requires `20261125000100_merchant_financial_dashboard.sql` and `20261125000200_merchant_digital_ledger.sql`; manual entries are merchant-recorded); [ ] payout execution and reconciliation.
 - [x] Customer product questions, account-scoped merchant replies, and customer message history (requires `20261112000200_merchant_insights_and_questions.sql`); [ ] support cases and disputes for payment/delivery issues.
 - [x] Product performance analytics and 7/30-day paid-order demand insights.
 - [x] Indicative active-offer price comparisons by category, unit, and size plus transparent 14-day pace-based stock recommendations.

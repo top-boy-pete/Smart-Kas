@@ -44,6 +44,20 @@ test("financial totals separate net sales, recorded expenses, payouts, and cash 
   assert.equal(summary.estimatedCashFlow, 0);
 });
 
+test("supplier payments and other income update costs and net estimates", () => {
+  const summary = summarizeFinancialActivity([
+    { type: "sale", amount: 100 },
+    { type: "supplier_payment", amount: -20 },
+    { type: "other_expense", amount: -5 },
+    { type: "other_income", amount: 40 },
+    { type: "payout", amount: 50 },
+  ]);
+  assert.equal(summary.expenseTotal, 25);
+  assert.equal(summary.otherIncome, 40);
+  assert.equal(summary.estimatedProfit, 115);
+  assert.equal(summary.estimatedCashFlow, 65);
+});
+
 test("financial statement CSV includes period totals and protects user-entered formulas", () => {
   const summary = summarizeFinancialActivity([
     { type: "expense", amount: -10 },

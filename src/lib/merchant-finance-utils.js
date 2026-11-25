@@ -60,7 +60,10 @@ export function getFinancialDateRange(period, now = new Date(), offset = 0) {
 export function summarizeFinancialActivity(activities) {
   const sales = activities.filter(activity => activity.type === "sale");
   const refunds = activities.filter(activity => activity.type === "refund");
-  const expenses = activities.filter(activity => activity.type === "expense");
+  const expenses = activities.filter(activity => ["expense", "supplier_payment", "other_expense"].includes(activity.type));
+  const otherIncome = activities
+    .filter(activity => activity.type === "other_income")
+    .reduce((sum, activity) => sum + activity.amount, 0);
   const payouts = activities.filter(activity => activity.type === "payout");
   const salesGross = sales.reduce((sum, activity) => sum + activity.amount, 0);
   const refunded = refunds.reduce((sum, activity) => sum + Math.abs(activity.amount), 0);
@@ -74,10 +77,11 @@ export function summarizeFinancialActivity(activities) {
     revenue,
     transactionCount: sales.length,
     averageTransaction: sales.length ? salesGross / sales.length : 0,
+    otherIncome,
     expenseTotal,
     payoutTotal,
-    estimatedProfit: revenue - expenseTotal,
-    estimatedCashFlow: payoutTotal - refunded - expenseTotal,
+    estimatedProfit: revenue + otherIncome - expenseTotal,
+    estimatedCashFlow: payoutTotal + otherIncome - refunded - expenseTotal,
   };
 }
 
@@ -98,6 +102,7 @@ export function buildFinancialStatementCsv({ period, range, activities, summary 
     ["To", range.endDate],
     ["Net sales revenue (NGN)", summary.revenue.toFixed(2)],
     ["Transactions", summary.transactionCount],
+    ["Other income (NGN)", summary.otherIncome.toFixed(2)],
     ["Recorded expenses (NGN)", summary.expenseTotal.toFixed(2)],
     ["Estimated profit (NGN)", summary.estimatedProfit.toFixed(2)],
     ["Completed payouts (NGN)", summary.payoutTotal.toFixed(2)],

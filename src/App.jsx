@@ -810,7 +810,7 @@ function MerchantView({
     </section>}
     {activeTab === "questions" && <MerchantQuestionsPanel questions={questions} loading={questionsLoading} error={questionsError} onAnswer={onAnswerQuestion} />}
     {activeTab === "insights" && <MerchantInsightsPanel insights={insights} loading={insightsLoading} error={insightsError} orders={orders} ordersLoading={ordersLoading} />}
-    {activeTab === "finances" && <MerchantFinancialDashboard demoMode={demoMode} />}
+    {activeTab === "finances" && <MerchantFinancialDashboard demoMode={demoMode} accountName={account.name} />}
     {activeTab === "payouts" && <MerchantPayouts payouts={payouts} loading={payoutsLoading} error={payoutsError} />}
   </>;
 }
