@@ -6,8 +6,7 @@ import {
   ShoppingBasket, Star, Store, Sun, TrendingUp, Truck, UserPlus, UserRound, Wallet, Wheat, X,
 } from "lucide-react";
 import {
-  categories, demoOrder, formatNaira, readStored, starterInventory, starterMerchantOrders,
-  starterMerchantInsights, starterMerchantPayouts, starterMerchantQuestions, starterProducts,
+  categories, formatNaira, readStored,
 } from "./data.js";
 import AdminView from "./AdminView.jsx";
 import { loadStaffRoles } from "./lib/admin.js";
@@ -31,6 +30,9 @@ import {
   removeMerchantDocuments, uploadMerchantDocuments, validateMerchantDocuments,
 } from "./lib/merchant-onboarding.js";
 import { demoMode, loadAccountProfile, supabase, supabaseConfigured } from "./lib/supabase.js";
+import { useAppState, useAppStore } from "./store/app-store.js";
+
+useAppStore.getState().configureForEnvironment({ demoMode, supabaseConfigured });
 
 const paymentMethods = [
   { id: "wallet", title: "Kasua wallet", detail: "Wallet balance" },
@@ -39,23 +41,6 @@ const paymentMethods = [
   { id: "ussd", title: "USSD", detail: "Works on any phone" },
 ];
 const deliveryFee = 500;
-
-function useDemoState(initialValue) {
-  return useState(initialValue);
-}
-
-function useLocalCart(persistLocally) {
-  const [cart, setCart] = useState(() => {
-    const stored = readStored("kasua-cart", []);
-    return Array.isArray(stored)
-      ? stored.filter(line => typeof line.productId === "string" && Number.isInteger(line.quantity) && line.quantity > 0)
-      : [];
-  });
-  useEffect(() => {
-    if (persistLocally) window.localStorage.setItem("kasua-cart", JSON.stringify(cart));
-  }, [cart, persistLocally]);
-  return [cart, setCart];
-}
 
 function IconButton({ label, children, className = "", onClick, disabled = false }) {
   return <button className={`icon-button ${className}`} type="button" aria-label={label} title={label} onClick={onClick} disabled={disabled}>{children}</button>;
@@ -723,7 +708,7 @@ function ShopView({ products, cart, onAdd, onAskQuestion, onQuantity, onCheckout
                   {catalogLoading ? <div className="empty-state" role="status">Loading products from Supabase...</div> : <div className="product-grid">{visibleProducts.map(product => { const quantityInCart = cart.find(line => line.productId === product.id)?.quantity || 0; const maxQuantity = Math.min(99, Number.isInteger(product.stock) ? product.stock : 99); return <ProductCard key={product.id} product={product} onAdd={onAdd} onAskQuestion={onAskQuestion} disabled={cartLoading || quantityInCart >= maxQuantity || (!quantityInCart && cart.length >= 100)} />; })}{visibleProducts.length === 0 && !catalogError && <div className="empty-state">No products match this search. Try another item or category.</div>}</div>}
                 </section>
               </div>
-              {isGuest ? <aside className="side-column" aria-label="Your basket"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={onCheckout} onClear={onClearCart} isGuest cartLoading={cartLoading} /></aside> : demoMode ? <aside className="side-column" aria-label="Your Kasua account"><WalletPanel balance={walletBalance} notify={notify} /><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} /><DeliveryPanel order={order} onTrack={() => navigate("orders")} /><TrustPanel onVerify={onVerify} /><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside> : <aside className="side-column" aria-label="Account status"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} cartLoading={cartLoading} /><p className="account-intro">Your account is secure. Checkout and payment are not connected yet.</p><SupportPanel onComplaint={onComplaint} supportCases={supportCases} /></aside>}
+              {isGuest ? <aside className="side-column" aria-label="Your basket"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={onCheckout} onClear={onClearCart} isGuest cartLoading={cartLoading} /></aside> : demoMode ? <aside className="side-column" aria-label="Your Kasua account"><WalletPanel balance={walletBalance} notify={notify} /><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} /><DeliveryPanel order={order} onTrack={() => navigate("orders")} /><TrustPanel onVerify={onVerify} /><SupportPanel onComplaint={onComplaint} supportCases={customerSupportCases} /></aside> : <aside className="side-column" aria-label="Account status"><BasketPanel cart={cart} products={products} totals={totals} onQuantity={onQuantity} onCheckout={() => onCheckout(totals)} onClear={onClearCart} cartLoading={cartLoading} /><p className="account-intro">Your account is secure. Checkout and payment are not connected yet.</p><SupportPanel onComplaint={onComplaint} supportCases={customerSupportCases} /></aside>}
             </div>
             <span className="sr-only">{cartCount} items in your basket</span>
           </>}
@@ -1123,15 +1108,12 @@ function VerificationDialog({ onClose }) {
 function Toast({ message }) { return <div className={`toast ${message ? "show" : ""}`} role="status" aria-live="polite">{message}</div>; }
 
 export default function App() {
-  const [demoAccount, setDemoAccount] = useDemoState(null);
-  const [demoAccounts, setDemoAccounts] = useDemoState({});
-  const [account, setAccount] = useState(() => demoMode ? demoAccount : null);
+  const [demoAccount, setDemoAccount] = useAppState("demoAccount");
+  const [demoAccounts, setDemoAccounts] = useAppState("demoAccounts");
+  const [account, setAccount] = useAppState("account");
   const cartSaveQueue = useRef(Promise.resolve());
-  const [authReady, setAuthReady] = useState(!supabaseConfigured);
-  const [entryPage, setEntryPage] = useState(() => {
-    const path = window.location.pathname.replace(/\/+$/, "") || "/";
-    return path === "/admin" ? demoMode ? "admin" : "staff-login" : "landing";
-  });
+  const [authReady, setAuthReady] = useAppState("authReady");
+  const [entryPage, setEntryPage] = useAppState("entryPage");
   useEffect(() => {
     function syncEntryPage() {
       const path = window.location.pathname.replace(/\/+$/, "") || "/";
@@ -1140,57 +1122,66 @@ export default function App() {
     window.addEventListener("popstate", syncEntryPage);
     return () => window.removeEventListener("popstate", syncEntryPage);
   }, []);
-  const [products, setProducts] = useDemoState(demoMode ? starterProducts : []);
-  const [inventory, setInventory] = useDemoState(demoMode ? starterInventory : []);
-  const [inventoryLoading, setInventoryLoading] = useState(!demoMode);
-  const [inventoryError, setInventoryError] = useState("");
-  const [merchantOrders, setMerchantOrders] = useDemoState(demoMode ? starterMerchantOrders : []);
-  const [merchantPayouts, setMerchantPayouts] = useDemoState(demoMode ? starterMerchantPayouts : []);
-  const [merchantInsights, setMerchantInsights] = useDemoState(demoMode ? starterMerchantInsights : []);
-  const [merchantQuestions, setMerchantQuestions] = useDemoState(demoMode ? starterMerchantQuestions : []);
-  const [customerMerchantQuestions, setCustomerMerchantQuestions] = useState([]);
-  const [customerQuestionsOwner, setCustomerQuestionsOwner] = useState(null);
-  const [customerQuestionsLoading, setCustomerQuestionsLoading] = useState(false);
-  const [customerQuestionsError, setCustomerQuestionsError] = useState("");
-  const [merchantOrdersOwner, setMerchantOrdersOwner] = useState(null);
-  const [merchantPayoutsOwner, setMerchantPayoutsOwner] = useState(null);
-  const [merchantInsightsOwner, setMerchantInsightsOwner] = useState(null);
-  const [merchantQuestionsOwner, setMerchantQuestionsOwner] = useState(null);
-  const [merchantOrdersLoading, setMerchantOrdersLoading] = useState(!demoMode);
-  const [merchantPayoutsLoading, setMerchantPayoutsLoading] = useState(!demoMode);
-  const [merchantInsightsLoading, setMerchantInsightsLoading] = useState(!demoMode);
-  const [merchantQuestionsLoading, setMerchantQuestionsLoading] = useState(!demoMode);
-  const [merchantOrdersError, setMerchantOrdersError] = useState("");
-  const [merchantPayoutsError, setMerchantPayoutsError] = useState("");
-  const [merchantInsightsError, setMerchantInsightsError] = useState("");
-  const [merchantQuestionsError, setMerchantQuestionsError] = useState("");
-  const [questionProduct, setQuestionProduct] = useState(null);
-  const [cart, setCart] = useLocalCart(demoMode || account?.role !== "consumer");
-  const [cartReadyUserId, setCartReadyUserId] = useState(null);
-  const [walletBalance, setWalletBalance] = useDemoState(12450);
-  const [order, setOrder] = useDemoState(demoOrder);
-  const [purchaseHistoryByAccount, setPurchaseHistoryByAccount] = useState(() => {
-    const saved = readStored("kasua-purchase-history", {});
-    return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
-  });
-  const [customerPrioritiesByAccount, setCustomerPrioritiesByAccount] = useState(() => {
-    const saved = readStored("kasua-customer-priorities", {});
-    return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
-  });
-  const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All items");
-  const [sort, setSort] = useState("featured");
-  const [dialog, setDialog] = useState(null);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [checkoutTotals, setCheckoutTotals] = useState(null);
-  const [toast, setToast] = useState("");
-  const [supportCases, setSupportCases] = useState([]);
-  const [catalogLoading, setCatalogLoading] = useState(!demoMode);
-  const [catalogError, setCatalogError] = useState("");
+  const [products, setProducts] = useAppState("products");
+  const [inventory, setInventory] = useAppState("inventory");
+  const [inventoryOwnerId, setInventoryOwnerId] = useAppState("inventoryOwnerId");
+  const [inventoryLoading, setInventoryLoading] = useAppState("inventoryLoading");
+  const [inventoryError, setInventoryError] = useAppState("inventoryError");
+  const [merchantOrders, setMerchantOrders] = useAppState("merchantOrders");
+  const [merchantPayouts, setMerchantPayouts] = useAppState("merchantPayouts");
+  const [merchantInsights, setMerchantInsights] = useAppState("merchantInsights");
+  const [merchantQuestions, setMerchantQuestions] = useAppState("merchantQuestions");
+  const [customerMerchantQuestions, setCustomerMerchantQuestions] = useAppState("customerMerchantQuestions");
+  const [customerQuestionsOwner, setCustomerQuestionsOwner] = useAppState("customerQuestionsOwner");
+  const [customerQuestionsLoading, setCustomerQuestionsLoading] = useAppState("customerQuestionsLoading");
+  const [customerQuestionsError, setCustomerQuestionsError] = useAppState("customerQuestionsError");
+  const [merchantOrdersOwner, setMerchantOrdersOwner] = useAppState("merchantOrdersOwner");
+  const [merchantPayoutsOwner, setMerchantPayoutsOwner] = useAppState("merchantPayoutsOwner");
+  const [merchantInsightsOwner, setMerchantInsightsOwner] = useAppState("merchantInsightsOwner");
+  const [merchantQuestionsOwner, setMerchantQuestionsOwner] = useAppState("merchantQuestionsOwner");
+  const [merchantOrdersLoading, setMerchantOrdersLoading] = useAppState("merchantOrdersLoading");
+  const [merchantPayoutsLoading, setMerchantPayoutsLoading] = useAppState("merchantPayoutsLoading");
+  const [merchantInsightsLoading, setMerchantInsightsLoading] = useAppState("merchantInsightsLoading");
+  const [merchantQuestionsLoading, setMerchantQuestionsLoading] = useAppState("merchantQuestionsLoading");
+  const [merchantOrdersError, setMerchantOrdersError] = useAppState("merchantOrdersError");
+  const [merchantPayoutsError, setMerchantPayoutsError] = useAppState("merchantPayoutsError");
+  const [merchantInsightsError, setMerchantInsightsError] = useAppState("merchantInsightsError");
+  const [merchantQuestionsError, setMerchantQuestionsError] = useAppState("merchantQuestionsError");
+  const [questionProduct, setQuestionProduct] = useAppState("questionProduct");
+  const [storedCart, setCart] = useAppState("cart");
+  const [cartOwnerId] = useAppState("cartOwnerId");
+  const [cartReadyUserId, setCartReadyUserId] = useAppState("cartReadyUserId");
+  const [walletBalance, setWalletBalance] = useAppState("walletBalance");
+  const [order, setOrder] = useAppState("order");
+  const [purchaseHistoryByAccount, setPurchaseHistoryByAccount] = useAppState("purchaseHistoryByAccount");
+  const [customerPrioritiesByAccount, setCustomerPrioritiesByAccount] = useAppState("customerPrioritiesByAccount");
+  const [search, setSearch] = useAppState("search");
+  const [activeCategory, setActiveCategory] = useAppState("activeCategory");
+  const [sort, setSort] = useAppState("sort");
+  const [dialog, setDialog] = useAppState("dialog");
+  const [editingProduct, setEditingProduct] = useAppState("editingProduct");
+  const [checkoutTotals, setCheckoutTotals] = useAppState("checkoutTotals");
+  const [toast, setToast] = useAppState("toast");
+  const [supportCases, setSupportCases] = useAppState("supportCases");
+  const [supportCasesOwnerId, setSupportCasesOwnerId] = useAppState("supportCasesOwnerId");
+  const [catalogLoading, setCatalogLoading] = useAppState("catalogLoading");
+  const [catalogError, setCatalogError] = useAppState("catalogError");
   const cartLoading = !demoMode && account?.role === "consumer" && cartReadyUserId !== account.id;
+  const cart = !demoMode && cartOwnerId
+    && (account?.role !== "consumer" || account.id !== cartOwnerId)
+    ? []
+    : storedCart;
+  const merchantInventory = demoMode || inventoryOwnerId === account?.id ? inventory : [];
+  const customerSupportCases = supportCasesOwnerId === account?.id ? supportCases : [];
   const customerKey = account?.id ?? "guest";
   const purchaseHistory = purchaseHistoryByAccount[customerKey] || [];
   const customerPriorities = customerPrioritiesByAccount[customerKey] || [];
+
+  useEffect(() => {
+    if (demoMode || account?.role !== "consumer") {
+      window.localStorage.setItem("kasua-cart", JSON.stringify(cart));
+    }
+  }, [demoMode, account?.role, cart]);
 
   useEffect(() => {
     if (demoMode) return undefined;
@@ -1207,10 +1198,16 @@ export default function App() {
   useEffect(() => {
     if (demoMode || account?.role !== "merchant" || account.verificationStatus !== "verified") return undefined;
     let active = true;
+    setInventory([]);
+    setInventoryOwnerId(null);
     setInventoryLoading(true);
     setInventoryError("");
     loadMerchantProducts()
-      .then(items => { if (active) setInventory(items); })
+      .then(items => {
+        if (!active) return;
+        setInventory(items);
+        setInventoryOwnerId(account.id);
+      })
       .catch(error => { if (active) setInventoryError(`Could not load your listings: ${error.message}`); })
       .finally(() => { if (active) setInventoryLoading(false); });
     return () => { active = false; };
@@ -1405,8 +1402,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(event => {
       if (event === "SIGNED_OUT") {
         setAccount(null);
-        setCart([]);
-        setCartReadyUserId(null);
+        useAppStore.getState().setCartForUser(null, []);
         setAuthReady(true);
       }
     });
@@ -1425,11 +1421,18 @@ export default function App() {
   useEffect(() => {
     if (!supabase || account?.role !== "consumer" || !account.id) {
       setSupportCases([]);
+      setSupportCasesOwnerId(null);
       return undefined;
     }
     let active = true;
+    setSupportCases([]);
+    setSupportCasesOwnerId(null);
     loadCustomerComplaints(account.id)
-      .then(cases => { if (active) setSupportCases(cases); })
+      .then(cases => {
+        if (!active) return;
+        setSupportCases(cases);
+        setSupportCasesOwnerId(account.id);
+      })
       .catch(error => { if (active) setToast(`Could not load your support cases: ${error.message}`); });
     return () => { active = false; };
   }, [account?.id, account?.role]);
@@ -1450,9 +1453,11 @@ export default function App() {
       if (guestItems.length) await mergeGuestCart(account.id, guestItems);
       const savedItems = await loadCustomerCart(account.id);
       if (!active) return;
-      setCart(savedItems.map(item => ({ productId: item.offer_id, quantity: item.quantity })));
+      useAppStore.getState().setCartForUser(
+        account.id,
+        savedItems.map(item => ({ productId: item.offer_id, quantity: item.quantity })),
+      );
       window.localStorage.removeItem("kasua-cart");
-      setCartReadyUserId(account.id);
     }
     loadCart().catch(error => {
       if (active) setToast(`Could not load your saved basket: ${error.message}`);
@@ -1481,6 +1486,10 @@ export default function App() {
     });
   }
   function addToCart(product) {
+    if (cartLoading) {
+      notify("Your saved basket is still loading. Try again in a moment.");
+      return;
+    }
     const currentQuantity = cart.find(line => line.productId === product.id)?.quantity || 0;
     const maxQuantity = Math.min(99, Number.isInteger(product.stock) ? product.stock : 99);
     if (currentQuantity >= maxQuantity) {
@@ -2008,7 +2017,7 @@ export default function App() {
         onRegister={() => setEntryPage("register")}
         onLogout={logout}
         onRefreshOrder={refreshOrder}
-        supportCases={supportCases}
+        supportCases={customerSupportCases}
         purchaseHistory={purchaseHistory}
         priorities={customerPriorities}
         onTogglePriority={toggleCustomerPriority}
@@ -2020,7 +2029,7 @@ export default function App() {
         merchantQuestionsLoading={customerQuestionsLoading}
         merchantQuestionsError={customerQuestionsError}
       /> : <MerchantView
-        inventory={inventory}
+        inventory={merchantInventory}
         onAddProduct={productHandler}
         onEditProduct={item => { setEditingProduct(item); setDialog("addProduct"); }}
         onVerify={() => setDialog("verification")}

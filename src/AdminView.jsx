@@ -11,6 +11,7 @@ import {
   reviewFinancialApproval, reviewMerchantApplication, setMerchantReviewCheck,
   submitFinancialApproval, updateComplaint,
 } from "./lib/admin.js";
+import { useAppState, useAppStore } from "./store/app-store.js";
 
 const navItems = [
   { name: "Overview", icon: LayoutDashboard },
@@ -274,40 +275,63 @@ export default function AdminView({ onExit, account, isDemo = false }) {
   const [section, setSection] = useState("Overview");
   const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia("(min-width: 761px)").matches);
   const [globalSearch, setGlobalSearch] = useState("");
-  const [merchantApplications, setMerchantApplications] = useState(() => isDemo ? accounts.filter(account => account.role === "Merchant").map(account => ({
-    id: account.id,
-    name: account.name,
-    area: account.area,
-    submitted: account.status === "Pending review" ? "Today · 10:24" : "Yesterday · 15:08",
-    status: account.status,
-    landmark: "",
-    checks: Object.entries(reviewCheckDetails).map(([id, [label, detail]]) => ({ id, label, detail, complete: false })),
-  })) : []);
-  const [complaintCases, setComplaintCases] = useState(() => isDemo ? complaints.map(item => ({
-    id: item.id,
-    topic: item.topic,
-    order: item.order,
-    customer: item.customer,
-    priority: item.priority,
-    rawPriority: item.priority.toLowerCase(),
-    rawStatus: "open",
-    status: "Open",
-    age: item.age,
-    description: item.topic,
-    events: [],
-  })) : []);
-  const [financialApprovals, setFinancialApprovals] = useState([]);
+  const [adminDataOwnerId, setAdminDataOwnerId] = useAppState("adminDataOwnerId");
+  const [storedMerchantApplications, setMerchantApplications] = useAppState("adminMerchantApplications");
+  const [storedComplaintCases, setComplaintCases] = useAppState("adminComplaintCases");
+  const [storedFinancialApprovals, setFinancialApprovals] = useAppState("adminFinancialApprovals");
+  const [storedAuditEvents, setAuditEvents] = useAppState("adminAuditEvents");
+  const accountDataMatches = adminDataOwnerId === (account?.id ?? null);
+  const merchantApplications = accountDataMatches ? storedMerchantApplications : [];
+  const complaintCases = accountDataMatches ? storedComplaintCases : [];
+  const financialApprovals = accountDataMatches ? storedFinancialApprovals : [];
+  const auditEvents = accountDataMatches ? storedAuditEvents : [];
   const [selectedMerchantId, setSelectedMerchantId] = useState(null);
-  const [auditEvents, setAuditEvents] = useState(() => isDemo ? [
-    { id: "AU-201", time: "12:42", role: "Hub operator", action: "Recorded quantity mismatch", target: "SH-0831", approval: "Not required", sample: true },
-    { id: "AU-198", time: "12:31", role: "Merchant reviewer", action: "Requested additional documents", target: "ME-0218", approval: "Logged", sample: true },
-    { id: "AU-194", time: "11:58", role: "Dispatch coordinator", action: "Assigned route", target: "RT-NORTH-04", approval: "Logged", sample: true },
-  ] : []);
   const [accountNotice, setAccountNotice] = useState("");
   const [toast, setToast] = useState("");
   const [dataError, setDataError] = useState("");
   const [isLoading, setIsLoading] = useState(!isDemo);
   const [actionBusy, setActionBusy] = useState(false);
+  useEffect(() => {
+    const ownerId = account?.id ?? null;
+    if (adminDataOwnerId === ownerId) return;
+    setAdminDataOwnerId(ownerId);
+    setMerchantApplications([]);
+    setComplaintCases([]);
+    setFinancialApprovals([]);
+    setAuditEvents([]);
+    setSelectedMerchantId(null);
+  }, [account?.id, adminDataOwnerId, setAdminDataOwnerId, setMerchantApplications, setComplaintCases, setFinancialApprovals, setAuditEvents]);
+  useEffect(() => {
+    if (!isDemo) return;
+    setMerchantApplications(current => current.length ? current : accounts.filter(item => item.role === "Merchant").map(item => ({
+      id: item.id,
+      name: item.name,
+      area: item.area,
+      submitted: item.status === "Pending review" ? "Today · 10:24" : "Yesterday · 15:08",
+      status: item.status,
+      landmark: "",
+      checks: Object.entries(reviewCheckDetails).map(([id, [label, detail]]) => ({ id, label, detail, complete: false })),
+    })));
+    setComplaintCases(current => current.length ? current : complaints.map(item => ({
+      id: item.id,
+      topic: item.topic,
+      order: item.order,
+      customer: item.customer,
+      priority: item.priority,
+      rawPriority: item.priority.toLowerCase(),
+      rawStatus: "open",
+      status: "Open",
+      age: item.age,
+      description: item.topic,
+      events: [],
+    })));
+    setFinancialApprovals([]);
+    setAuditEvents(current => current.length ? current : [
+      { id: "AU-201", time: "12:42", role: "Hub operator", action: "Recorded quantity mismatch", target: "SH-0831", approval: "Not required", sample: true },
+      { id: "AU-198", time: "12:31", role: "Merchant reviewer", action: "Requested additional documents", target: "ME-0218", approval: "Logged", sample: true },
+      { id: "AU-194", time: "11:58", role: "Dispatch coordinator", action: "Assigned route", target: "RT-NORTH-04", approval: "Logged", sample: true },
+    ]);
+  }, [isDemo, setMerchantApplications, setComplaintCases, setFinancialApprovals, setAuditEvents]);
   useEffect(() => {
     const desktopQuery = window.matchMedia("(min-width: 761px)");
     const syncSidebar = event => setSidebarOpen(event.matches);
@@ -329,40 +353,42 @@ export default function AdminView({ onExit, account, isDemo = false }) {
       staffRoles.some(role => ["finance_reviewer", "finance_approver"].includes(role)) ? loadFinancialApprovals() : Promise.resolve(null),
       staffRoles.includes("audit_viewer") ? loadAuditEvents() : Promise.resolve(null),
     ]);
-    if (merchantRows) setMerchantApplications(merchantRows.map(row => ({
-      id: row.user_id,
-      name: row.full_name,
-      area: `${row.market_name} · Stall ${row.stall_number}`,
-      submitted: displayDate(row.submitted_at),
-      status: row.verification_status === "pending" ? "Pending review" : formatStatus(row.verification_status),
-      landmark: row.landmark,
-      identityDocumentType: row.identity_document_type,
-      identityDocumentUrl: row.identity_document_url,
-      businessEvidenceType: row.business_evidence_type,
-      businessDocumentUrl: row.business_document_url,
-      acceptedPolicyVersion: row.accepted_policy_version,
-      acceptedPolicyAt: row.accepted_policy_at,
-      checks: row.checks.map(check => {
-        const [label, detail] = reviewCheckDetails[check.id];
-        return { id: check.id, label, detail, complete: check.complete, notes: check.notes };
-      }),
-    })));
-    if (complaintRows) setComplaintCases(complaintRows.map(row => ({
-      id: row.id,
-      topic: row.subject,
-      order: row.order_reference || "—",
-      customer: row.customer_name,
-      priority: formatStatus(row.priority),
-      rawPriority: row.priority,
-      rawStatus: row.status,
-      status: formatStatus(row.status),
-      age: displayDate(row.created_at),
-      description: row.description,
-      assignedTo: row.assigned_to,
-      events: row.events,
-    })));
-    if (approvalRows) setFinancialApprovals(approvalRows);
-    if (auditRows) setAuditEvents(auditRows);
+    useAppStore.getState().setAdminDataForOwner(account?.id ?? null, {
+      merchantApplications: (merchantRows || []).map(row => ({
+        id: row.user_id,
+        name: row.full_name,
+        area: `${row.market_name} · Stall ${row.stall_number}`,
+        submitted: displayDate(row.submitted_at),
+        status: row.verification_status === "pending" ? "Pending review" : formatStatus(row.verification_status),
+        landmark: row.landmark,
+        identityDocumentType: row.identity_document_type,
+        identityDocumentUrl: row.identity_document_url,
+        businessEvidenceType: row.business_evidence_type,
+        businessDocumentUrl: row.business_document_url,
+        acceptedPolicyVersion: row.accepted_policy_version,
+        acceptedPolicyAt: row.accepted_policy_at,
+        checks: row.checks.map(check => {
+          const [label, detail] = reviewCheckDetails[check.id];
+          return { id: check.id, label, detail, complete: check.complete, notes: check.notes };
+        }),
+      })),
+      complaintCases: (complaintRows || []).map(row => ({
+        id: row.id,
+        topic: row.subject,
+        order: row.order_reference || "—",
+        customer: row.customer_name,
+        priority: formatStatus(row.priority),
+        rawPriority: row.priority,
+        rawStatus: row.status,
+        status: formatStatus(row.status),
+        age: displayDate(row.created_at),
+        description: row.description,
+        assignedTo: row.assigned_to,
+        events: row.events,
+      })),
+      financialApprovals: approvalRows || [],
+      auditEvents: auditRows || [],
+    });
   }
 
   useEffect(() => {
